@@ -1,0 +1,7 @@
+const LETTER_RESULT = {
+  CORRECT: 'CORRECT',
+  PRESENT: 'PRESENT',
+  ABSENT: 'ABSENT',
+};
+
+export default LETTER_RESULT;
