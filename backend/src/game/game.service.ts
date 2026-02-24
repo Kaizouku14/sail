@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LETTER_RESULT } from '@/common/constants/word.constants';
+import LETTER_RESULT from '@/common/constants/word.constants';
 import LetterResult from '@/common/types/letter-result.type';
 import { WordService } from '@/word/word.service';
 
