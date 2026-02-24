@@ -5,4 +5,4 @@ import { WordService } from './word.service';
   providers: [WordService],
   exports: [WordService],
 })
-export class GameModule {}
+export class WordModule {}
