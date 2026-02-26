@@ -6,6 +6,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { v4 as uuidv4 } from 'uuid';
 import { GAME_STATUS } from '@/common/constants/game-status.constants';
 import { AuthGuard } from '@/auth/auth.guard';
+import { RateLimit, RateLimitGuard } from '@/common/guard/rate-limit.guard';
 
 @common.Controller('game')
 export class GameController {
@@ -27,7 +28,8 @@ export class GameController {
   }
 
   @common.Post('guess')
-  @common.UseGuards(AuthGuard)
+  @common.UseGuards(AuthGuard, RateLimitGuard)
+  @RateLimit(10, 60)
   async guess(
     @common.Body() body: SubmitGuessDto,
     @common.Req() req: FastifyRequest,

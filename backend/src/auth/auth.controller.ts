@@ -5,12 +5,14 @@ import { RegisterDto } from './dto/register.dto';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { RateLimit } from '@/common/guard/rate-limit.guard';
 
 @common.Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @common.Post('login')
+  @RateLimit(5, 60)
   async login(@common.Body() body: LoginDto) {
     return await this.authService.login(body);
   }
