@@ -4,9 +4,9 @@ import { SubmitGuessDto } from './dto/submit-guess.dto';
 import { GameService } from './game.service';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { v4 as uuidv4 } from 'uuid';
-import { GAME_STATUS } from '@/common/constants/game-status.constants';
 import { AuthGuard } from '@/auth/auth.guard';
 import { RateLimit, RateLimitGuard } from '@/common/guard/rate-limit.guard';
+import { GAME_STATUS } from '@/common/constants/game-state.constants';
 
 @common.Controller('game')
 export class GameController {

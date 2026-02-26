@@ -5,6 +5,8 @@ import { WordService } from '@/word/word.service';
 import { RedisService } from '@/redis/redis.service';
 import { GameState, GameStatusType } from '@/common/types/game-state.type';
 import { GAME_STATUS } from '@/common/constants/game-state.constants';
+import { gameSessions } from '@/database/schema';
+import { DatabaseService } from '@/database/database.service';
 
 @Injectable()
 export class GameService {
@@ -14,6 +16,7 @@ export class GameService {
   constructor(
     private wordService: WordService,
     private redisService: RedisService,
+    private database: DatabaseService,
   ) {}
 
   private getRedisKey(sessionId: string): string {
@@ -122,10 +125,15 @@ export class GameService {
     state.guesses.push({ word: guess, results });
 
     const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
+    let result: GameStatusType;
     if (isWon) {
-      state.status = GAME_STATUS.WON as GameStatusType;
+      result = GAME_STATUS.WON as GameStatusType;
+      state.status = result;
+      await this.saveSessionToDB(sessionId, result, state.guesses.length);
     } else if (state.guesses.length === state.maxGuesses) {
-      state.status = GAME_STATUS.LOST as GameStatusType;
+      result = GAME_STATUS.WON as GameStatusType;
+      state.status = result;
+      await this.saveSessionToDB(sessionId, result, state.guesses.length);
     }
 
     await this.saveGameState(sessionId, state);
@@ -136,5 +144,25 @@ export class GameService {
       guessesRemaining: state.maxGuesses - state.guesses.length,
       answer: state.status === GAME_STATUS.LOST ? state.answer : undefined,
     };
+  }
+
+  private async saveSessionToDB(
+    sessionId: string,
+    status: GameStatusType,
+    guessCount: number,
+  ): Promise<void> {
+    await this.database.db
+      .insert(gameSessions)
+      .values({
+        sessionId,
+        status,
+        guessCount,
+        wordDate: new Date().toISOString().split('T')[0],
+        completedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: gameSessions.sessionId,
+        set: { status, guessCount, completedAt: new Date() },
+      });
   }
 }
