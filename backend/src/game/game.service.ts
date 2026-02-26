@@ -1,11 +1,71 @@
 import { Injectable } from '@nestjs/common';
-import LETTER_RESULT from '@/common/constants/word.constants';
+import { LETTER_RESULT } from '@/common/constants/word.constants';
 import LetterResult from '@/common/types/letter-result.type';
 import { WordService } from '@/word/word.service';
+import { RedisService } from '@/redis/redis.service';
+import { GameState, GameStatus } from '@/common/types/game-state.type';
+import { GAME_STATUS } from '@/common/constants/game-status.constants';
 
 @Injectable()
 export class GameService {
-  constructor(private wordService: WordService) {}
+  private readonly MAX_GUESSES = 6;
+  private readonly SESSION_TTL = 60 * 60 * 24; // 24 hours
+
+  constructor(
+    private wordService: WordService,
+    private redisService: RedisService,
+  ) {}
+
+  private getRedisKey(sessionId: string): string {
+    return `game:${sessionId}`;
+  }
+
+  private getTodayUTC(): string {
+    const today = new Date();
+    return `${today.getUTCFullYear()}-${today.getUTCMonth()}-${today.getUTCDate()}`;
+  }
+
+  async getOrCreateGameState(sessionId: string): Promise<GameState> {
+    const key = this.getRedisKey(sessionId);
+
+    const existing = await this.redisService.get(key);
+
+    if (existing) {
+      const state = JSON.parse(existing) as GameState;
+
+      if (state.date !== this.getTodayUTC()) {
+        return await this.createNewGameState(sessionId);
+      }
+
+      return state;
+    }
+
+    return await this.createNewGameState(sessionId);
+  }
+
+  private async createNewGameState(sessionId: string): Promise<GameState> {
+    const state: GameState = {
+      answer: this.getDailyWord(),
+      guesses: [],
+      status: GAME_STATUS.IN_PROGRESS as GameStatus,
+      date: this.getTodayUTC(),
+      maxGuesses: this.MAX_GUESSES,
+    };
+
+    await this.saveGameState(sessionId, state);
+    return state;
+  }
+
+  async saveGameState(sessionId: string, state: GameState): Promise<void> {
+    const key = this.getRedisKey(sessionId);
+    await this.redisService.set(key, JSON.stringify(state), this.SESSION_TTL);
+  }
+
+  async getGameState(sessionId: string): Promise<GameState | null> {
+    const key = this.getRedisKey(sessionId);
+    const existing = await this.redisService.get(key);
+    return existing ? (JSON.parse(existing) as GameState) : null;
+  }
 
   getDailyWord(): string {
     const words = this.wordService.getAnswerWords();
