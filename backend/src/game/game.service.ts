@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { LETTER_RESULT } from '@/common/constants/word.constants';
 import LetterResult from '@/common/types/letter-result.type';
 import { WordService } from '@/word/word.service';
@@ -104,5 +104,38 @@ export class GameService {
     }
 
     return results;
+  }
+
+  async submitGuess(guess: string, sessionId: string) {
+    guess = guess.toLowerCase();
+    const state = await this.getOrCreateGameState(sessionId);
+
+    if (state.status === GAME_STATUS.WON || state.status === GAME_STATUS.LOST) {
+      throw new HttpException('Game already finished', HttpStatus.BAD_REQUEST);
+    }
+
+    const isValid = this.wordService.isValid(guess);
+    if (!isValid) {
+      throw new HttpException('Invalid word', HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    const results = this.evaluateWord(guess, state.answer);
+    state.guesses.push({ word: guess, results });
+
+    const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
+    if (isWon) {
+      state.status = GAME_STATUS.WON as GameStatus;
+    } else if (state.guesses.length === state.maxGuesses) {
+      state.status = GAME_STATUS.LOST as GameStatus;
+    }
+
+    await this.saveGameState(sessionId, state);
+
+    return {
+      results,
+      status: state.status,
+      guessesRemaining: state.maxGuesses - state.guesses.length,
+      answer: state.status === GAME_STATUS.LOST ? state.answer : undefined,
+    };
   }
 }
