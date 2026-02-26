@@ -1,3 +1,4 @@
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
 import {
   CanActivate,
   ExecutionContext,
@@ -18,8 +19,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired token');
     }
     try {
-      const payload: Record<string, unknown> =
-        await this.jwtService.verifyAsync(token);
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
       request['user'] = payload;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
