@@ -5,12 +5,17 @@ import {
 } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common/pipes';
+import fastifyCookie from '@fastify/cookie';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
   );
+
+  await app.register(fastifyCookie, {
+    secret: process.env.COOKIE_SECRET,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -107,7 +107,6 @@ export class GameService {
   }
 
   async submitGuess(guess: string, sessionId: string) {
-    guess = guess.toLowerCase();
     const state = await this.getOrCreateGameState(sessionId);
 
     if (state.status === GAME_STATUS.WON || state.status === GAME_STATUS.LOST) {
