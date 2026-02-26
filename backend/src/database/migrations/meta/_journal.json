@@ -15,6 +15,13 @@
       "when": 1772109896682,
       "tag": "0001_puzzling_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772112594630,
+      "tag": "0002_clean_justice",
+      "breakpoints": true
     }
   ]
 }

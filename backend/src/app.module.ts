@@ -7,6 +7,7 @@ import { WordModule } from './word/word.module';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { RateLimitGuard } from './common/guard/rate-limit.guard';
+import { RoomModule } from './room/room.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RateLimitGuard } from './common/guard/rate-limit.guard';
     AuthModule,
     GameModule,
     WordModule,
+    RoomModule,
   ],
   providers: [Reflector, RateLimitGuard],
 })

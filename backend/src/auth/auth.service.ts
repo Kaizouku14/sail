@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { eq, desc } from 'drizzle-orm';
 import { gameSessions, users } from '@/database/schema';
 import * as bcrypt from 'bcrypt';
-import { GAME_STATUS } from '@/common/constants/game-status.constants';
+import { GAME_STATUS } from '@/common/constants/game-state.constants';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 

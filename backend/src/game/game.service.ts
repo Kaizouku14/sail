@@ -3,8 +3,8 @@ import { LETTER_RESULT } from '@/common/constants/word.constants';
 import LetterResult from '@/common/types/letter-result.type';
 import { WordService } from '@/word/word.service';
 import { RedisService } from '@/redis/redis.service';
-import { GameState, GameStatus } from '@/common/types/game-state.type';
-import { GAME_STATUS } from '@/common/constants/game-status.constants';
+import { GameState, GameStatusType } from '@/common/types/game-state.type';
+import { GAME_STATUS } from '@/common/constants/game-state.constants';
 
 @Injectable()
 export class GameService {
@@ -47,7 +47,7 @@ export class GameService {
     const state: GameState = {
       answer: this.getDailyWord(),
       guesses: [],
-      status: GAME_STATUS.IN_PROGRESS as GameStatus,
+      status: GAME_STATUS.IN_PROGRESS as GameStatusType,
       date: this.getTodayUTC(),
       maxGuesses: this.MAX_GUESSES,
     };
@@ -123,9 +123,9 @@ export class GameService {
 
     const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
     if (isWon) {
-      state.status = GAME_STATUS.WON as GameStatus;
+      state.status = GAME_STATUS.WON as GameStatusType;
     } else if (state.guesses.length === state.maxGuesses) {
-      state.status = GAME_STATUS.LOST as GameStatus;
+      state.status = GAME_STATUS.LOST as GameStatusType;
     }
 
     await this.saveGameState(sessionId, state);

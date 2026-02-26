@@ -1,4 +1,6 @@
-export type GameStatus = 'IN_PROGRESS' | 'WON' | 'LOST';
+import { GameStatus } from '../constants/game-state.constants';
+
+export type GameStatusType = (typeof GameStatus)[number];
 
 export interface GuessRecord {
   word: string;
@@ -8,7 +10,7 @@ export interface GuessRecord {
 export interface GameState {
   answer: string;
   guesses: GuessRecord[];
-  status: GameStatus;
+  status: GameStatusType;
   date: string;
   maxGuesses: number;
 }
