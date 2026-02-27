@@ -5,8 +5,9 @@ import { WordModule } from '@/word/word.module';
 import { AuthModule } from '@/auth/auth.module';
 
 @Module({
-  controllers: [GameController],
-  providers: [GameService],
   imports: [WordModule, AuthModule],
+  providers: [GameService],
+  controllers: [GameController],
+  exports: [GameService],
 })
 export class GameModule {}
