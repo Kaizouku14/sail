@@ -29,13 +29,9 @@ import { SubmitGuessDto } from './dto/submit-guess.dto';
 import { getErrorMessage } from '@/common/utils/error.utils';
 import { GameEvent } from '@/common/types/game-event.type';
 
-function getSocketData(client: AuthenticatedSocket): SocketData {
-  return client.data;
-}
-
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: process.env.BASE_URL,
   },
   namespace: '/game',
 })
@@ -57,6 +53,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const event = JSON.parse(message) as GameEvent;
       this.server.to(event.roomId).emit(event.type, event.payload);
     });
+  }
+
+  private getSocketData(client: AuthenticatedSocket): SocketData {
+    return client.data;
   }
 
   private async publishEvent(
@@ -89,7 +89,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const payload = await this.jwt.verifyAsync<JwtPayload>(value);
 
-      const data = getSocketData(client);
+      const data = this.getSocketData(client);
       data.user = payload;
 
       await this.redis.set(`socket:${payload.id}`, client.id, 60 * 60 * 24);
@@ -106,7 +106,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleDisconnect(client: AuthenticatedSocket): Promise<void> {
     try {
-      const data = getSocketData(client);
+      const data = this.getSocketData(client);
       const user: JwtPayload | undefined = data.user;
       const roomId: string | undefined = data.roomId;
 
@@ -125,7 +125,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('createRoom')
   async handleCreateRoom(client: AuthenticatedSocket) {
     try {
-      const data = getSocketData(client);
+      const data = this.getSocketData(client);
       const user: JwtPayload = data.user;
 
       const room = await this.room.createRoom(user.id, user.username);
@@ -143,7 +143,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('joinRoom')
   async handleJoinRoom(client: AuthenticatedSocket, payload: JoinRoomDto) {
     try {
-      const data = getSocketData(client);
+      const data = this.getSocketData(client);
       const user: JwtPayload = data.user;
 
       const room = await this.room.joinRoom(
@@ -173,7 +173,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     payload: SubmitGuessDto,
   ) {
     try {
-      const data = getSocketData(client);
+      const data = this.getSocketData(client);
       const user: JwtPayload = data.user;
       const roomId: string | undefined = data.roomId;
 
@@ -228,10 +228,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       if (allFinished) {
-        // Persist final state to both Redis and database
         await this.room.finalizeRoom(roomId, room);
       } else {
-        // Just update Redis for in-progress state
         await this.redis.set(
           `room:${roomId}`,
           JSON.stringify(room),

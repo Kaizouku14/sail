@@ -47,10 +47,9 @@ export class AIService {
         throw new Error('No hint generated');
       }
 
-      // validate hint doesn't leak the answer
       if (!this.validateHint(hint, answer)) {
         this.logger.warn(`Hint leaked answer — regenerating`);
-        return this.generateHint(answer, guesses); // retry once
+        return this.generateHint(answer, guesses);
       }
 
       return hint;
@@ -86,7 +85,6 @@ export class AIService {
     const hintLower = hint.toLowerCase();
     const answerLower = answer.toLowerCase();
 
-    // check if hint contains the answer word
     return !hintLower.includes(answerLower);
   }
 

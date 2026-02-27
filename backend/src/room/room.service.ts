@@ -50,7 +50,6 @@ export class RoomService {
     // Persist to Redis for real-time access
     await this.redis.set(`room:${roomId}`, JSON.stringify(room), this.ROOM_TTL);
 
-    // Persist to database for long-term storage
     try {
       await this.database.db.insert(rooms).values({
         id: roomId,
@@ -103,19 +102,16 @@ export class RoomService {
       socketId: '',
     });
 
-    // If room now has 2 players, move to IN_PROGRESS
     if (parsedRoom.players.length === 2) {
       parsedRoom.status = ROOM_STATUS.IN_PROGRESS as RoomStatusType;
     }
 
-    // Update Redis
     await this.redis.set(
       `room:${roomId}`,
       JSON.stringify(parsedRoom),
       this.ROOM_TTL,
     );
 
-    // Persist to database
     try {
       await this.database.db.insert(roomPlayers).values({
         roomId,
@@ -167,7 +163,6 @@ export class RoomService {
     if (parsedRoom.players.length === 0) {
       await this.redis.del(`room:${roomId}`);
 
-      // Mark room as finished in DB when everyone leaves
       try {
         await this.database.db
           .update(rooms)
@@ -187,17 +182,14 @@ export class RoomService {
       parsedRoom.hostId = parsedRoom.players[0].id;
     }
 
-    // Update Redis
     await this.redis.set(
       `room:${roomId}`,
       JSON.stringify(parsedRoom),
       this.ROOM_TTL,
     );
 
-    // Update DB: update host if needed
     try {
       if (parsedRoom.hostId !== userId) {
-        // Host changed
         await this.database.db
           .update(rooms)
           .set({ hostId: parsedRoom.hostId })
@@ -210,19 +202,13 @@ export class RoomService {
     }
   }
 
-  /**
-   * Called when a multiplayer game ends — updates the room and each player's
-   * final status and guess count in the database.
-   */
   async finalizeRoom(roomId: string, parsedRoom: RoomState): Promise<void> {
-    // Update Redis
     await this.redis.set(
       `room:${roomId}`,
       JSON.stringify(parsedRoom),
       this.ROOM_TTL,
     );
 
-    // Persist final state to DB
     try {
       await this.database.db
         .update(rooms)

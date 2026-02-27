@@ -1,4 +1,4 @@
-import * as common from '@nestjs/common';
+import { Controller, Post, UseGuards, Body, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -7,24 +7,24 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { JwtPayload } from '@/common/types/jwt-payload.type';
 import { RateLimit, RateLimitGuard } from '@/common/guard/rate-limit.guard';
 
-@common.Controller('auth')
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @common.Post('login')
-  @common.UseGuards(RateLimitGuard)
+  @Post('login')
+  @UseGuards(RateLimitGuard)
   @RateLimit(5, 60)
-  async login(@common.Body() body: LoginDto) {
+  async login(@Body() body: LoginDto) {
     return await this.authService.login(body);
   }
 
-  @common.Post('register')
-  async register(@common.Body() body: RegisterDto) {
+  @Post('register')
+  async register(@Body() body: RegisterDto) {
     return await this.authService.register(body);
   }
 
-  @common.Get('stats')
-  @common.UseGuards(AuthGuard)
+  @Get('stats')
+  @UseGuards(AuthGuard)
   async getStats(@CurrentUser() user: JwtPayload) {
     return this.authService.getStats(user.id);
   }

@@ -15,7 +15,6 @@ interface RateLimitOptions {
   windowSeconds: number;
 }
 
-// custom decorator to set limits per route
 export const RateLimit = (limit: number, windowSeconds: number) =>
   SetMetadata<string, RateLimitOptions>('rateLimit', { limit, windowSeconds });
 

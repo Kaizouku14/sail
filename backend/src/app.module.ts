@@ -19,6 +19,7 @@ import * as Joi from 'joi';
         NODE_ENV: Joi.string()
           .valid('development', 'production', 'test')
           .required(),
+        BASE_URL: Joi.string().uri().required(),
         DATABASE_URL: Joi.string().uri().required(),
         REDIS_URL: Joi.string().uri().required(),
         JWT_SECRET: Joi.string().min(32).required(),

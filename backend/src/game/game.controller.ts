@@ -57,7 +57,7 @@ export class GameController {
     if (!sessionId) {
       sessionId = uuidv4();
       res.setCookie('sessionId', sessionId, {
-        httpOnly: true, // not accessible via JavaScript
+        httpOnly: true,
         maxAge: 60 * 60 * 24, // 24 hours
         path: '/',
       });
@@ -122,10 +122,8 @@ export class GameController {
       );
     }
 
-    // increment hint count
     await this.redis.set(hintKey, String(count + 1), 60 * 60 * 24);
 
-    // generate hint
     const guesses = state.guesses.map((g) => g.word);
     const hint = await this.ai.generateHint(state.answer, guesses);
 
