@@ -5,14 +5,18 @@ import Redis from 'ioredis';
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client: Redis;
+  private subscriber: Redis;
 
   constructor(private configService: ConfigService) {}
 
-  onModuleInit() {
-    this.client = new Redis(this.configService.get<string>('REDIS_URL')!);
+  onModuleInit(): void {
+    const redisUrl = this.configService.get<string>('REDIS_URL')!;
+    this.client = new Redis(redisUrl);
+    this.subscriber = new Redis(redisUrl);
   }
 
   async onModuleDestroy(): Promise<void> {
+    await this.subscriber.quit();
     await this.client.quit();
   }
 
@@ -46,5 +50,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async expire(key: string, seconds: number): Promise<void> {
     await this.client.expire(key, seconds);
+  }
+
+  async publish(channel: string, message: string): Promise<void> {
+    await this.client.publish(channel, message);
+  }
+
+  async subscribe(
+    channel: string,
+    callback: (message: string) => void,
+  ): Promise<void> {
+    await this.subscriber.subscribe(channel);
+    this.subscriber.on('message', (_channel: string, message: string) => {
+      if (_channel === channel) {
+        callback(message);
+      }
+    });
   }
 }

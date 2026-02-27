@@ -26,6 +26,12 @@ import { LETTER_RESULT } from '@/common/constants/word.constants';
 import { ROOM_STATUS } from '@/common/constants/room-status.constants';
 import { SubmitGuessDto } from './dto/submit-guess.dto';
 
+interface GameEvent {
+  roomId: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
 function getSocketData(client: AuthenticatedSocket): SocketData {
   return client.data;
 }
@@ -54,6 +60,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly game: GameService,
     private readonly word: WordService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.redis.subscribe('game-events', (message: string) => {
+      const event = JSON.parse(message) as GameEvent;
+      this.server.to(event.roomId).emit(event.type, event.payload);
+    });
+  }
+
+  private async publishEvent(
+    roomId: string,
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.redis.publish(
+      'game-events',
+      JSON.stringify({ roomId, type, payload }),
+    );
+  }
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
     try {
