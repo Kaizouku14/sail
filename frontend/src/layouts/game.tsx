@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import Header from "@/components/layout/header";
-import Footer from "@/components/layout/footer";
+// import Footer from "@/components/layout/footer";
 
 const GameLayout = () => {
   return (
@@ -9,7 +9,7 @@ const GameLayout = () => {
       <div className="h-full">
         <Outlet />
       </div>
-      <Footer />
+      {/*<Footer />*/}
     </div>
   );
 };
