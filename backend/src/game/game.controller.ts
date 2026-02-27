@@ -1,22 +1,38 @@
-import * as common from '@nestjs/common';
 import { WordService } from 'src/word/word.service';
-import { SubmitGuessDto } from './dto/submit-guess.dto';
 import { GameService } from './game.service';
+import { AIService } from '@/ai/ai.service';
+import { SubmitGuessDto } from './dto/submit-guess.dto';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthGuard } from '@/auth/auth.guard';
 import { RateLimit, RateLimitGuard } from '@/common/guard/rate-limit.guard';
 import { GAME_STATUS } from '@/common/constants/game-state.constants';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { RedisService } from '@/redis/redis.service';
 
-@common.Controller('game')
+@Controller('game')
 export class GameController {
   constructor(
     private readonly wordService: WordService,
     private readonly gameService: GameService,
+    private readonly ai: AIService,
+    private readonly redis: RedisService,
   ) {}
 
-  @common.Post('validate')
-  validate(@common.Body() body: SubmitGuessDto) {
+  @Post('validate')
+  validate(@Body() body: SubmitGuessDto) {
     const word = body.word.toLowerCase();
     const isValid = this.wordService.isValid(word);
 
@@ -27,13 +43,13 @@ export class GameController {
     return { valid: true };
   }
 
-  @common.Post('guess')
-  @common.UseGuards(AuthGuard, RateLimitGuard)
+  @Post('guess')
+  @UseGuards(AuthGuard, RateLimitGuard)
   @RateLimit(10, 60)
   async guess(
-    @common.Body() body: SubmitGuessDto,
-    @common.Req() req: FastifyRequest,
-    @common.Res() res: FastifyReply,
+    @Body() body: SubmitGuessDto,
+    @Req() req: FastifyRequest,
+    @Res() res: FastifyReply,
   ) {
     let sessionId = req.cookies['sessionId'];
 
@@ -51,12 +67,9 @@ export class GameController {
     return res.send(result);
   }
 
-  @common.Get('state')
-  @common.UseGuards(AuthGuard)
-  async state(
-    @common.Req() req: FastifyRequest,
-    @common.Res() res: FastifyReply,
-  ) {
+  @Get('state')
+  @UseGuards(AuthGuard)
+  async state(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
     const sessionId = req.cookies['sessionId'];
 
     if (!sessionId) {
@@ -76,5 +89,44 @@ export class GameController {
       answer:
         state.status === GAME_STATUS.IN_PROGRESS ? undefined : state.answer,
     });
+  }
+
+  @Get('hint')
+  @UseGuards(AuthGuard)
+  async getHint(@CurrentUser() user: JwtPayload, @Req() req: FastifyRequest) {
+    const sessionId = req.cookies['sessionId'] ?? user.id;
+
+    const state = await this.gameService.getGameState(sessionId);
+    if (!state) {
+      throw new HttpException('No active game', HttpStatus.NOT_FOUND);
+    }
+
+    if (state.status !== GAME_STATUS.IN_PROGRESS) {
+      throw new HttpException('Game is already over', HttpStatus.BAD_REQUEST);
+    }
+
+    // check hint limit — max 3 per game
+    const hintKey = `hints:${sessionId}`;
+    const hintCount = await this.redis.get(hintKey);
+    const count = hintCount ? parseInt(hintCount) : 0;
+
+    if (count >= 3) {
+      throw new HttpException(
+        'Hint limit reached (max 3 per game)',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // increment hint count
+    await this.redis.set(hintKey, String(count + 1), 60 * 60 * 24);
+
+    // generate hint
+    const guesses = state.guesses.map((g) => g.word);
+    const hint = await this.ai.generateHint(state.answer, guesses);
+
+    return {
+      hint,
+      hintsRemaining: 3 - (count + 1),
+    };
   }
 }

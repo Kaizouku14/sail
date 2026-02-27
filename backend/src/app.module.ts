@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { RateLimitGuard } from './common/guard/rate-limit.guard';
 import { RoomModule } from './room/room.module';
+import { AIModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { RoomModule } from './room/room.module';
     GameModule,
     WordModule,
     RoomModule,
+    AIModule,
   ],
   providers: [Reflector, RateLimitGuard],
 })

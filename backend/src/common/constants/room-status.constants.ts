@@ -1,4 +1,4 @@
-export const RoomStatus = ['WAITING', 'IN_PROGRESS', 'FINISHED'] as const;
+export const roomStatus = ['WAITING', 'IN_PROGRESS', 'FINISHED'] as const;
 
 export const ROOM_STATUS = {
   WAITING: 'WAITING',

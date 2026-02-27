@@ -5,9 +5,10 @@ import { WordModule } from '@/word/word.module';
 import { AuthModule } from '@/auth/auth.module';
 import { GameGateway } from './game.gateway';
 import { RoomModule } from '@/room/room.module';
+import { AIModule } from '@/ai/ai.module';
 
 @Module({
-  imports: [WordModule, AuthModule, RoomModule],
+  imports: [WordModule, AuthModule, RoomModule, AIModule],
   providers: [GameService, GameGateway],
   controllers: [GameController],
   exports: [GameService],

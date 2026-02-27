@@ -1,6 +1,6 @@
-import { GameStatus } from '../constants/game-state.constants';
+import { gameStatus } from '../constants/game-state.constants';
 
-export type GameStatusType = (typeof GameStatus)[number];
+export type GameStatusType = (typeof gameStatus)[number];
 
 export interface GuessRecord {
   word: string;
