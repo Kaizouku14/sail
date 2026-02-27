@@ -123,9 +123,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       await this.room.removePlayer(roomId, user.id);
 
-      this.server.to(roomId).emit('PLAYER_LEFT', {
-        playerId: user.id,
-      });
+      await this.publishEvent(roomId, 'PLAYER_LEFT', { playerId: user.id });
 
       await this.redis.del(`socket:${user.id}`);
     } catch {
@@ -149,7 +147,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       data.roomId = payload.roomId;
 
-      this.server.to(payload.roomId).emit('PLAYER_JOINED', {
+      await this.publishEvent(payload.roomId, 'PLAYER_JOINED', {
         playerId: user.id,
         username: user.username,
       });
@@ -226,23 +224,21 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         60 * 60 * 24,
       );
 
-      this.server.to(roomId).emit('GUESS_RESULT', {
+      await this.publishEvent(roomId, 'GUESS_RESULT', {
         playerId: user.id,
         guessNumber: player.guesses,
         results,
       });
 
       if (isWon) {
-        this.server.to(roomId).emit('PLAYER_WON', {
+        await this.publishEvent(roomId, 'PLAYER_WON', {
           playerId: user.id,
           guessCount: player.guesses,
         });
       }
 
       if (allFinished) {
-        this.server.to(roomId).emit('GAME_OVER', {
-          answer: room.word,
-        });
+        await this.publishEvent(roomId, 'GAME_OVER', { answer: room.word });
       }
     } catch (error: unknown) {
       client.emit('ERROR', { message: getErrorMessage(error) });
