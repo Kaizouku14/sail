@@ -1,98 +1,340 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Wordle Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The backend API and real-time WebSocket server for a multiplayer Wordle game. Built with **NestJS**, **Fastify**, **PostgreSQL**, **Redis**, and **Socket.IO**, with AI-powered hints via **Groq**.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Table of Contents
 
-## Description
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Environment Variables](#environment-variables)
+  - [Installation](#installation)
+  - [Database Setup](#database-setup)
+  - [Running the Server](#running-the-server)
+- [API Reference](#api-reference)
+  - [Auth](#auth)
+  - [Game](#game)
+- [WebSocket Events](#websocket-events)
+  - [Client → Server](#client--server)
+  - [Server → Client](#server--client)
+- [Modules](#modules)
+- [Database Schema](#database-schema)
+- [Docker](#docker)
+- [Scripts](#scripts)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Tech Stack
 
-## Project setup
+| Layer            | Technology                         |
+| ---------------- | ---------------------------------- |
+| Framework        | NestJS 11 + Fastify 5             |
+| Language         | TypeScript 5                       |
+| Database         | PostgreSQL 16                      |
+| ORM              | Drizzle ORM                        |
+| Cache / Pub-Sub  | Redis 7 (via ioredis)             |
+| WebSockets       | Socket.IO (via @nestjs/websockets) |
+| Authentication   | JWT (via @nestjs/jwt) + bcrypt     |
+| AI               | Groq SDK (LLM-powered hints)      |
+| Validation       | class-validator + Joi              |
+| Build Tool       | SWC                                |
+| Package Manager  | pnpm                               |
 
-```bash
-$ pnpm install
+## Architecture
+
+```
+src/
+├── ai/            # Groq-powered hint generation & difficulty scoring
+├── auth/          # JWT authentication, registration, login, stats
+├── common/        # Shared constants, decorators, guards, types, utils
+├── database/      # Drizzle ORM setup, schema definitions, migrations
+├── game/          # Core game logic, guess evaluation, REST + WebSocket
+├── redis/         # Redis client service (cache, pub/sub)
+├── room/          # Multiplayer room management
+├── word/          # Word dictionary loading & validation
+├── app.module.ts  # Root module
+└── main.ts        # Application bootstrap (Fastify adapter)
 ```
 
-## Compile and run the project
+The backend uses a **hybrid architecture**:
 
-```bash
-# development
-$ pnpm run start
+- **REST API** — for solo gameplay, authentication, and game state queries.
+- **WebSocket Gateway** (`/game` namespace) — for real-time multiplayer rooms with Redis pub/sub for event broadcasting.
+- **Redis** — serves as the primary store for active game sessions, room state, and socket mappings. Acts as a pub/sub layer for cross-instance WebSocket event distribution.
+- **PostgreSQL** — provides durable persistence for users, game sessions, guesses, and room history.
 
-# watch mode
-$ pnpm run start:dev
+## Getting Started
 
-# production mode
-$ pnpm run start:prod
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) >= 20
+- [pnpm](https://pnpm.io/) >= 9
+- [PostgreSQL](https://www.postgresql.org/) 16+
+- [Redis](https://redis.io/) 7+
+
+Or simply [Docker](https://www.docker.com/) to run everything containerized.
+
+### Environment Variables
+
+Create a `.env` file in the `backend/` directory:
+
+```env
+NODE_ENV=development
+BASE_URL=http://localhost:5173
+PORT=3000
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/wordle
+POSTGRES_USER=user
+POSTGRES_PASSWORD=password
+POSTGRES_DB=wordle
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Auth
+JWT_SECRET=your-secret-key-at-least-32-characters-long
+JWT_EXPIRES_IN=7d
+COOKIE_SECRET=your-cookie-secret-at-least-32-characters
+
+# AI (Groq)
+GROQ_API_KEY=your-groq-api-key
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
-## Run tests
+> **Note:** `GROQ_API_KEY` is required for the AI hint feature. Get one at [console.groq.com](https://console.groq.com/).
+
+### Installation
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm install
 ```
 
-## Deployment
+### Database Setup
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Generate and run Drizzle migrations:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# Generate migration files from schema
+pnpm run db:generate
+
+# Apply migrations to the database
+pnpm run db:migrate
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+You can also inspect your database visually with:
 
-## Resources
+```bash
+pnpm run db:studio
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### Running the Server
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+# Development (watch mode with SWC)
+pnpm run start:dev
 
-## Support
+# Development (without watch)
+pnpm run start
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+# Production
+pnpm run build
+pnpm run start:prod
+```
 
-## Stay in touch
+The server starts on `http://localhost:3000` by default.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## API Reference
 
-## License
+### Auth
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Method | Endpoint       | Auth | Rate Limited | Description                        |
+| ------ | -------------- | ---- | ------------ | ---------------------------------- |
+| POST   | `/auth/register` | No   | No           | Register a new user                |
+| POST   | `/auth/login`    | No   | 5 req/60s    | Login and receive a JWT            |
+| GET    | `/auth/stats`    | Yes  | No           | Get the current user's game stats  |
+
+**POST `/auth/register`**
+
+```json
+{
+  "username": "player1",
+  "email": "player@example.com",
+  "password": "securepassword"
+}
+```
+
+**POST `/auth/login`**
+
+```json
+{
+  "email": "player@example.com",
+  "password": "securepassword"
+}
+```
+
+Returns a JWT token for authenticated requests.
+
+**GET `/auth/stats`** — returns win/loss stats, current streak, and guess distribution.
+
+### Game
+
+| Method | Endpoint         | Auth | Rate Limited | Description                          |
+| ------ | ---------------- | ---- | ------------ | ------------------------------------ |
+| POST   | `/game/validate` | No   | No           | Check if a word is in the dictionary |
+| POST   | `/game/guess`    | Yes  | 10 req/60s   | Submit a guess for the daily word    |
+| GET    | `/game/state`    | Yes  | No           | Get current game session state       |
+| GET    | `/game/hint`     | Yes  | No           | Get an AI-generated hint (max 3)     |
+
+**POST `/game/guess`**
+
+```json
+{
+  "word": "crane"
+}
+```
+
+Returns letter-by-letter results (`CORRECT`, `PRESENT`, or `ABSENT`), game status, and remaining guesses.
+
+**GET `/game/hint`** — returns a semantic hint from the AI without revealing the answer. Limited to 3 hints per game session.
+
+## WebSocket Events
+
+Connect to the `/game` namespace with a JWT token in the auth handshake:
+
+```js
+const socket = io("http://localhost:3000/game", {
+  auth: { token: "Bearer <jwt>" }
+});
+```
+
+### Client → Server
+
+| Event          | Payload                  | Description                  |
+| -------------- | ------------------------ | ---------------------------- |
+| `createRoom`   | —                        | Create a new multiplayer room |
+| `joinRoom`     | `{ roomId: string }`     | Join an existing room         |
+| `submitGuess`  | `{ word: string }`       | Submit a guess in a room      |
+
+### Server → Client
+
+| Event            | Payload                                          | Description                                |
+| ---------------- | ------------------------------------------------ | ------------------------------------------ |
+| `CONNECTED`      | `{ message, userId }`                            | Successful WebSocket connection             |
+| `ROOM_CREATED`   | Room state object                                | Room was successfully created               |
+| `ROOM_STATE`     | Room state object                                | Full room state on join                     |
+| `PLAYER_JOINED`  | `{ playerId, username }`                         | Another player joined the room              |
+| `PLAYER_LEFT`    | `{ playerId }`                                   | A player disconnected                       |
+| `GUESS_RESULT`   | `{ playerId, guessNumber, results }`             | Result of a player's guess                  |
+| `PLAYER_WON`     | `{ playerId, guessCount }`                       | A player solved the word                    |
+| `GAME_OVER`      | `{ answer }`                                     | All players finished — reveals the answer   |
+| `ERROR`          | `{ message }`                                    | Error message                               |
+
+**Room flow:** A room starts in `WAITING` status. When a second player joins, it transitions to `IN_PROGRESS`. The game ends when all players have either won or exhausted their 6 guesses, at which point the status becomes `FINISHED`.
+
+## Modules
+
+| Module       | Description                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| `AppModule`  | Root module — imports all feature modules, configures global env validation with Joi                |
+| `AuthModule` | User registration, login (bcrypt + JWT), and player statistics                                     |
+| `GameModule` | Core Wordle logic — daily word selection, two-pass guess evaluation, session management, WebSocket gateway |
+| `WordModule` | Loads word dictionaries from static files, provides word validation and answer-word retrieval       |
+| `RoomModule` | Multiplayer room lifecycle — create, join, leave, finalize — with Redis state and DB persistence    |
+| `AIModule`   | Groq LLM integration for semantic hint generation and word difficulty scoring                       |
+| `RedisModule`| Redis client wrapper — key/value ops, pub/sub, TTL management                                      |
+| `DatabaseModule` | Drizzle ORM + PostgreSQL connection provider                                                   |
+
+## Database Schema
+
+**`users`** — registered player accounts
+
+| Column     | Type      | Notes            |
+| ---------- | --------- | ---------------- |
+| id         | UUID (PK) | Auto-generated   |
+| username   | TEXT      | Unique           |
+| email      | TEXT      | Unique           |
+| password   | TEXT      | bcrypt hash      |
+| created_at | TIMESTAMP | Default: now()   |
+
+**`game_sessions`** — solo game sessions
+
+| Column       | Type      | Notes                               |
+| ------------ | --------- | ----------------------------------- |
+| id           | UUID (PK) | Auto-generated                      |
+| user_id      | UUID (FK) | References `users.id`               |
+| session_id   | TEXT      | Unique cookie-based session ID      |
+| word_date    | DATE      | The date of the daily word          |
+| status       | TEXT      | `IN_PROGRESS` / `WON` / `LOST`     |
+| guess_count  | INTEGER   | Total guesses made (nullable)       |
+| completed_at | TIMESTAMP | When the game ended (nullable)      |
+
+**`guesses`** — individual guess records
+
+| Column     | Type      | Notes                          |
+| ---------- | --------- | ------------------------------ |
+| id         | UUID (PK) | Auto-generated                 |
+| session_id | UUID (FK) | References `game_sessions.id`  |
+| word       | TEXT      | The guessed word               |
+| results    | JSONB     | Array of letter results        |
+
+**`rooms`** — multiplayer game rooms
+
+| Column     | Type      | Notes                                     |
+| ---------- | --------- | ----------------------------------------- |
+| id         | UUID (PK) | Auto-generated                            |
+| host_id    | UUID (FK) | References `users.id`                     |
+| word       | TEXT      | The target word for this room             |
+| status     | TEXT      | `WAITING` / `IN_PROGRESS` / `FINISHED`   |
+| created_at | TIMESTAMP | Default: now()                            |
+
+**`room_players`** — players within a room
+
+| Column      | Type      | Notes                                  |
+| ----------- | --------- | -------------------------------------- |
+| id          | UUID (PK) | Auto-generated                         |
+| room_id     | UUID (FK) | References `rooms.id`                  |
+| user_id     | UUID (FK) | References `users.id`                  |
+| status      | TEXT      | `PLAYING` / `WON` / `LOST`            |
+| guess_count | INTEGER   | Number of guesses made                 |
+| joined_at   | TIMESTAMP | Default: now()                         |
+
+## Docker
+
+The project includes a multi-stage `Dockerfile` and a `docker-compose.yml` that runs the backend alongside PostgreSQL and Redis.
+
+```bash
+# Build and start all services
+pnpm run docker:up
+
+# View logs
+pnpm run docker:logs
+
+# Stop all services
+pnpm run docker:down
+```
+
+The Docker Compose setup exposes:
+
+- **Backend** → `localhost:3000`
+- **PostgreSQL** → `localhost:5432`
+- **Redis** → `localhost:6379`
+
+## Scripts
+
+| Script              | Description                              |
+| ------------------- | ---------------------------------------- |
+| `pnpm run start`     | Start the server (SWC)                  |
+| `pnpm run start:dev` | Start in watch mode (SWC)              |
+| `pnpm run start:prod` | Start production build                 |
+| `pnpm run build`     | Build the project                       |
+| `pnpm run db:generate` | Generate Drizzle migrations           |
+| `pnpm run db:migrate`  | Run pending migrations                |
+| `pnpm run db:studio`   | Open Drizzle Studio (DB GUI)          |
+| `pnpm run lint`      | Lint and auto-fix with ESLint           |
+| `pnpm run format`    | Format code with Prettier               |
+| `pnpm run test`      | Run unit tests                          |
+| `pnpm run test:e2e`  | Run end-to-end tests                    |
+| `pnpm run test:cov`  | Run tests with coverage                 |
+| `pnpm run docker:up` | Build and start Docker containers       |
+| `pnpm run docker:down` | Stop Docker containers                |
+| `pnpm run docker:logs` | Tail backend container logs           |
