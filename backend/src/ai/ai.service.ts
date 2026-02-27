@@ -1,5 +1,6 @@
 import { SCORE_DIFFICULTY } from '@/common/constants/score-difficulty';
 import { ScoreDifficultyType } from '@/common/types/score-difficulty.type';
+import { getErrorMessage } from '@/common/utils/error.utils';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Groq from 'groq-sdk';
@@ -54,9 +55,7 @@ export class AIService {
 
       return hint;
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error(`Failed to generate hint: ${error.message}`);
-      }
+      this.logger.error(`Failed to generate hint: ${getErrorMessage(error)}`);
       throw new Error('Failed to generate hint');
     }
   }
@@ -126,9 +125,7 @@ export class AIService {
 
       return 'medium';
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error(`Failed to score difficulty: ${error.message}`);
-      }
+      this.logger.error(`Failed to validate hint: ${getErrorMessage(error)}`);
       return 'medium';
     }
   }

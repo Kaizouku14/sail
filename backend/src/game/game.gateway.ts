@@ -4,6 +4,7 @@ import type {
   SocketData,
 } from '@/common/types/socket-data.type';
 import { RedisService } from '@/redis/redis.service';
+import { Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   WebSocketGateway,
@@ -25,22 +26,11 @@ import {
 import { LETTER_RESULT } from '@/common/constants/word.constants';
 import { ROOM_STATUS } from '@/common/constants/room-status.constants';
 import { SubmitGuessDto } from './dto/submit-guess.dto';
-
-interface GameEvent {
-  roomId: string;
-  type: string;
-  payload: Record<string, unknown>;
-}
+import { getErrorMessage } from '@/common/utils/error.utils';
+import { GameEvent } from '@/common/types/game-event.type';
 
 function getSocketData(client: AuthenticatedSocket): SocketData {
   return client.data;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'An unexpected error occurred';
 }
 
 @WebSocketGateway({
@@ -56,6 +46,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
+    @Inject(forwardRef(() => RoomService))
     private readonly room: RoomService,
     private readonly game: GameService,
     private readonly word: WordService,
@@ -128,6 +119,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await this.redis.del(`socket:${user.id}`);
     } catch {
       // player wasn't in a room — ignore
+    }
+  }
+
+  @SubscribeMessage('createRoom')
+  async handleCreateRoom(client: AuthenticatedSocket) {
+    try {
+      const data = getSocketData(client);
+      const user: JwtPayload = data.user;
+
+      const room = await this.room.createRoom(user.id, user.username);
+
+      await client.join(room.id);
+
+      data.roomId = room.id;
+
+      return { event: 'ROOM_CREATED', data: room };
+    } catch (error: unknown) {
+      client.emit('ERROR', { message: getErrorMessage(error) });
     }
   }
 
@@ -218,11 +227,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         room.status = ROOM_STATUS.FINISHED as RoomStatusType;
       }
 
-      await this.redis.set(
-        `room:${roomId}`,
-        JSON.stringify(room),
-        60 * 60 * 24,
-      );
+      if (allFinished) {
+        // Persist final state to both Redis and database
+        await this.room.finalizeRoom(roomId, room);
+      } else {
+        // Just update Redis for in-progress state
+        await this.redis.set(
+          `room:${roomId}`,
+          JSON.stringify(room),
+          60 * 60 * 24,
+        );
+      }
 
       await this.publishEvent(roomId, 'GUESS_RESULT', {
         playerId: user.id,

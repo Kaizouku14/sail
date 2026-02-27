@@ -48,6 +48,7 @@ export class GameController {
   @RateLimit(10, 60)
   async guess(
     @Body() body: SubmitGuessDto,
+    @CurrentUser() user: JwtPayload,
     @Req() req: FastifyRequest,
     @Res() res: FastifyReply,
   ) {
@@ -62,7 +63,11 @@ export class GameController {
       });
     }
 
-    const result = await this.gameService.submitGuess(body.word, sessionId);
+    const result = await this.gameService.submitGuess(
+      body.word,
+      sessionId,
+      user.id,
+    );
 
     return res.send(result);
   }

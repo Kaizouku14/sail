@@ -1,12 +1,13 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { LETTER_RESULT } from '@/common/constants/word.constants';
-import LetterResult from '@/common/types/letter-result.type';
+import { LetterResultType } from '@/common/types/letter-result.type';
 import { WordService } from '@/word/word.service';
 import { RedisService } from '@/redis/redis.service';
 import { GameState, GameStatusType } from '@/common/types/game-state.type';
 import { GAME_STATUS } from '@/common/constants/game-state.constants';
-import { gameSessions } from '@/database/schema';
+import { gameSessions, guesses } from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class GameService {
@@ -28,7 +29,10 @@ export class GameService {
     return `${today.getUTCFullYear()}-${today.getUTCMonth()}-${today.getUTCDate()}`;
   }
 
-  async getOrCreateGameState(sessionId: string): Promise<GameState> {
+  async getOrCreateGameState(
+    sessionId: string,
+    userId: string,
+  ): Promise<GameState> {
     const key = this.getRedisKey(sessionId);
 
     const existing = await this.redisService.get(key);
@@ -37,16 +41,19 @@ export class GameService {
       const state = JSON.parse(existing) as GameState;
 
       if (state.date !== this.getTodayUTC()) {
-        return await this.createNewGameState(sessionId);
+        return await this.createNewGameState(sessionId, userId);
       }
 
       return state;
     }
 
-    return await this.createNewGameState(sessionId);
+    return await this.createNewGameState(sessionId, userId);
   }
 
-  private async createNewGameState(sessionId: string): Promise<GameState> {
+  private async createNewGameState(
+    sessionId: string,
+    userId: string,
+  ): Promise<GameState> {
     const state: GameState = {
       answer: this.getDailyWord(),
       guesses: [],
@@ -54,6 +61,9 @@ export class GameService {
       date: this.getTodayUTC(),
       maxGuesses: this.MAX_GUESSES,
     };
+
+    // Ensure there's a game_sessions row linked to the user
+    await this.ensureSessionInDB(sessionId, userId);
 
     await this.saveGameState(sessionId, state);
     return state;
@@ -85,14 +95,14 @@ export class GameService {
   }
 
   evaluateWord(guess: string, answer: string) {
-    const results: LetterResult[] = Array(5).fill(
+    const results: LetterResultType[] = Array(5).fill(
       LETTER_RESULT.ABSENT,
-    ) as LetterResult[];
+    ) as LetterResultType[];
     const pool: (string | null)[] = answer.split('');
 
     for (let i = 0; i < 5; i++) {
       if (guess[i] === answer[i]) {
-        results[i] = LETTER_RESULT.CORRECT as LetterResult;
+        results[i] = LETTER_RESULT.CORRECT as LetterResultType;
         pool[i] = null;
       }
     }
@@ -101,7 +111,7 @@ export class GameService {
       if (results[i] === LETTER_RESULT.CORRECT) continue;
       const idx = pool.indexOf(guess[i]);
       if (idx !== -1) {
-        results[i] = LETTER_RESULT.PRESENT as LetterResult;
+        results[i] = LETTER_RESULT.PRESENT as LetterResultType;
         pool[idx] = null;
       }
     }
@@ -109,8 +119,8 @@ export class GameService {
     return results;
   }
 
-  async submitGuess(guess: string, sessionId: string) {
-    const state = await this.getOrCreateGameState(sessionId);
+  async submitGuess(guess: string, sessionId: string, userId: string) {
+    const state = await this.getOrCreateGameState(sessionId, userId);
 
     if (state.status === GAME_STATUS.WON || state.status === GAME_STATUS.LOST) {
       throw new HttpException('Game already finished', HttpStatus.BAD_REQUEST);
@@ -124,16 +134,19 @@ export class GameService {
     const results = this.evaluateWord(guess, state.answer);
     state.guesses.push({ word: guess, results });
 
+    // Persist individual guess to the guesses table
+    await this.saveGuessToDB(sessionId, guess, results);
+
     const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
     let result: GameStatusType;
     if (isWon) {
       result = GAME_STATUS.WON as GameStatusType;
       state.status = result;
-      await this.saveSessionToDB(sessionId, result, state.guesses.length);
+      await this.finalizeSession(sessionId, result, state.guesses.length);
     } else if (state.guesses.length === state.maxGuesses) {
-      result = GAME_STATUS.WON as GameStatusType;
+      result = GAME_STATUS.LOST as GameStatusType;
       state.status = result;
-      await this.saveSessionToDB(sessionId, result, state.guesses.length);
+      await this.finalizeSession(sessionId, result, state.guesses.length);
     }
 
     await this.saveGameState(sessionId, state);
@@ -146,23 +159,60 @@ export class GameService {
     };
   }
 
-  private async saveSessionToDB(
+  /**
+   * Create the game_sessions row when a new game starts, linking it to the user.
+   * Uses onConflictDoNothing so we don't overwrite an existing session.
+   */
+  private async ensureSessionInDB(
     sessionId: string,
-    status: GameStatusType,
-    guessCount: number,
+    userId: string,
   ): Promise<void> {
     await this.database.db
       .insert(gameSessions)
       .values({
         sessionId,
-        status,
-        guessCount,
+        userId,
         wordDate: new Date().toISOString().split('T')[0],
-        completedAt: new Date(),
+        status: GAME_STATUS.IN_PROGRESS as GameStatusType,
       })
-      .onConflictDoUpdate({
-        target: gameSessions.sessionId,
-        set: { status, guessCount, completedAt: new Date() },
-      });
+      .onConflictDoNothing({ target: gameSessions.sessionId });
+  }
+
+  /**
+   * Update the session with the final status and guess count when the game ends.
+   */
+  private async finalizeSession(
+    sessionId: string,
+    status: GameStatusType,
+    guessCount: number,
+  ): Promise<void> {
+    await this.database.db
+      .update(gameSessions)
+      .set({ status, guessCount, completedAt: new Date() })
+      .where(eq(gameSessions.sessionId, sessionId));
+  }
+
+  /**
+   * Persist an individual guess to the guesses table.
+   * Looks up the game_sessions row by sessionId to get the FK id.
+   */
+  private async saveGuessToDB(
+    sessionId: string,
+    word: string,
+    results: LetterResultType[],
+  ): Promise<void> {
+    const [session] = await this.database.db
+      .select({ id: gameSessions.id })
+      .from(gameSessions)
+      .where(eq(gameSessions.sessionId, sessionId))
+      .limit(1);
+
+    if (!session) return;
+
+    await this.database.db.insert(guesses).values({
+      sessionId: session.id,
+      word,
+      results,
+    });
   }
 }

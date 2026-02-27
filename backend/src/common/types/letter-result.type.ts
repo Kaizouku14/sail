@@ -1,3 +1,3 @@
-type LetterResult = 'ABSENT' | 'PRESENT' | 'CORRECT';
+import { LetterResult } from '../constants/word.constants';
 
-export default LetterResult;
+export type LetterResultType = (typeof LetterResult)[number];

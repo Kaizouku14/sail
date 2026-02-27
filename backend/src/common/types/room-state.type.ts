@@ -1,8 +1,8 @@
-import { playerStatus } from '../constants/player-status.constants';
-import { roomStatus } from '../constants/room-status.constants';
+import { PlayerStatus } from '../constants/player-status.constants';
+import { RoomStatus } from '../constants/room-status.constants';
 
-export type RoomStatusType = (typeof roomStatus)[number];
-export type PlayerStatusType = (typeof playerStatus)[number];
+export type RoomStatusType = (typeof RoomStatus)[number];
+export type PlayerStatusType = (typeof PlayerStatus)[number];
 
 export interface Player {
   id: string;
