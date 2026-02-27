@@ -18,5 +18,5 @@ export interface RoomState {
   hostId: string;
   players: Player[];
   status: RoomStatusType;
-  createdAt: string;
+  createdAt: Date;
 }
