@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const mapBg: Record<TileStatus, string> = {
+export const colorMap: Record<TileStatus, string> = {
   CORRECT: "bg-chart-3",
   PRESENT: "bg-chart-2",
   ABSENT: "bg-secondary-background",

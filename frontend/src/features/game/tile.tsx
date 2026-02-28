@@ -1,5 +1,5 @@
-import { cn, mapBg } from "@/lib/utils";
-import type { TileStatus } from "@/types/tile-status";
+import { cn, colorMap } from "@/lib/utils";
+import type { TileStatus } from "@/types/game.types";
 
 interface TileProps {
   letter: string;
@@ -11,7 +11,7 @@ const Tile: React.FC<TileProps> = ({ letter, status }) => {
     <div
       className={cn(
         "text-neutral-100 border-2 border-border flex justify-center items-center text-3xl",
-        mapBg[status],
+        colorMap[status],
       )}
     >
       {letter}

@@ -1,4 +1,4 @@
-import type { TileStatus } from "@/types/tile-status";
+import type { TileStatus } from "@/types/game.types";
 import Title from "./tile";
 
 const Board = () => {
