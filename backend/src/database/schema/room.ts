@@ -10,6 +10,10 @@ export const rooms = pgTable('rooms', {
     .notNull(),
   word: text('word').notNull(),
   status: text('status', { enum: RoomStatus }).default('WAITING').notNull(),
+  timeLimit: integer('time_limit').default(360).notNull(),
+  startedAt: timestamp('started_at'),
+  finishedAt: timestamp('finished_at'),
+  winnerId: uuid('winner_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

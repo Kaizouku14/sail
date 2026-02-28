@@ -3,7 +3,7 @@ import { authService } from "@/service/auth.service";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PageRoutes } from "@/utils/constants";
-import { LogIn, LogOut, User, Swords } from "lucide-react";
+import { LogIn, LogOut, User, Swords, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Header = () => {
@@ -29,7 +29,8 @@ const Header = () => {
         <div className="text-2xl font-bold">Wordle</div>
 
         <nav className="flex items-center gap-1">
-          <button
+          <Button
+            variant="neutral"
             onClick={() => navigate(PageRoutes.GAME)}
             className={cn(
               "px-3 py-1.5 rounded-base text-sm font-heading transition-colors",
@@ -39,10 +40,11 @@ const Header = () => {
             )}
           >
             Solo
-          </button>
+          </Button>
 
           {isAuthenticated && (
-            <button
+            <Button
+              variant="neutral"
               onClick={() => navigate(PageRoutes.RACE)}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-base text-sm font-heading transition-colors",
@@ -53,7 +55,23 @@ const Header = () => {
             >
               <Swords className="size-3.5" />
               Race
-            </button>
+            </Button>
+          )}
+
+          {isAuthenticated && (
+            <Button
+              variant="neutral"
+              onClick={() => navigate(PageRoutes.STATS)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-base text-sm font-heading transition-colors",
+                isActive(PageRoutes.STATS)
+                  ? "bg-main/15 text-main"
+                  : "text-foreground/60 hover:text-foreground hover:bg-foreground/5",
+              )}
+            >
+              <BarChart3 className="size-3.5" />
+              Stats
+            </Button>
           )}
         </nav>
       </div>

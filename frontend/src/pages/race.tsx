@@ -4,17 +4,30 @@ import { useEffect, useRef } from "react";
 
 const Race = () => {
   const { roomId: roomIdFromUrl } = useParams<{ roomId: string }>();
-  const { room, disconnect, handleKeyPress, keyboardColors, joinRoom } =
-    useRace();
+  const {
+    room,
+    disconnect,
+    handleKeyPress,
+    keyboardColors,
+    joinRoom,
+    rejoinRoom,
+    requestRematch,
+    acceptRematch,
+  } = useRace();
   const autoJoinAttempted = useRef(false);
 
-  // Auto-join if navigated via invite link
+  // Auto-join if navigated via invite link, or attempt rejoin for reconnection
   useEffect(() => {
-    if (roomIdFromUrl && !room && !autoJoinAttempted.current) {
-      autoJoinAttempted.current = true;
-      joinRoom(roomIdFromUrl);
+    if (autoJoinAttempted.current) return;
+    if (room) return;
+
+    autoJoinAttempted.current = true;
+
+    if (roomIdFromUrl) {
+      // Try rejoin first (handles reconnection), fall back to join (handles fresh invite)
+      rejoinRoom(roomIdFromUrl);
     }
-  }, [roomIdFromUrl, room, joinRoom]);
+  }, [roomIdFromUrl, room, rejoinRoom, joinRoom]);
 
   if (!room) {
     return <RaceLobby roomIdFromUrl={roomIdFromUrl} />;
@@ -25,6 +38,8 @@ const Race = () => {
       onLeave={disconnect}
       onKeyPress={handleKeyPress}
       keyboardColors={keyboardColors}
+      onRequestRematch={requestRematch}
+      onAcceptRematch={acceptRematch}
     />
   );
 };

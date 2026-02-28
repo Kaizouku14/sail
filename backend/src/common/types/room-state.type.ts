@@ -20,4 +20,7 @@ export interface RoomState {
   players: Player[];
   status: RoomStatusType;
   createdAt: Date;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  timeLimit: number; // seconds (default 360 = 6 minutes)
 }

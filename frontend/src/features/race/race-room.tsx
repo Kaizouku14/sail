@@ -4,6 +4,9 @@ import { Board, KeyBoard } from "@/features/game";
 import OpponentBoard from "./opponent-board";
 import PlayerList from "./player-list";
 import InviteLink from "./invite-link";
+import WaitingOverlay from "./waiting-overlay";
+import GameOverBanner from "./game-over-banner";
+import RaceTimer from "./race-timer";
 import { Button } from "@/components/ui/button";
 import { LogOut, Clock } from "lucide-react";
 import type { TileStatus } from "@/types/game.types";
@@ -12,83 +15,29 @@ interface RaceRoomProps {
   onLeave: () => void;
   onKeyPress: (key: string) => void;
   keyboardColors: Record<string, TileStatus>;
+  onRequestRematch: () => void;
+  onAcceptRematch: () => void;
 }
-
-const WaitingOverlay = ({
-  roomId,
-  inviteLink,
-}: {
-  roomId: string;
-  inviteLink: string;
-}) => (
-  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-base">
-    <div className="flex flex-col items-center gap-4 p-6 max-w-xs text-center">
-      <div className="rounded-base border-2 border-border bg-main/10 p-3">
-        <Clock className="size-6 text-main" />
-      </div>
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-heading">Waiting for opponent</p>
-        <p className="text-xs opacity-60">
-          Share the room code below so a friend can join
-        </p>
-      </div>
-      <InviteLink roomId={roomId} inviteLink={inviteLink} />
-    </div>
-  </div>
-);
-
-const GameOverBanner = ({
-  myStatus,
-  answer,
-  myGuessCount,
-  opponentName,
-  opponentStatus,
-}: {
-  myStatus: "WON" | "LOST" | "PLAYING";
-  answer: string | null;
-  myGuessCount: number;
-  opponentName: string | null;
-  opponentStatus: string | null;
-}) => {
-  const isWinner = myStatus === "WON";
-
-  let description = "";
-  if (isWinner) {
-    description = `You solved it in ${myGuessCount} ${myGuessCount === 1 ? "guess" : "guesses"}!`;
-  } else if (myStatus === "LOST" && opponentStatus === "WON") {
-    description = `${opponentName ?? "Opponent"} solved it first.`;
-  } else {
-    description = "Neither player solved it.";
-  }
-
-  if (answer) {
-    description += ` The word was ${answer.toUpperCase()}.`;
-  }
-
-  return (
-    <div
-      className={`w-full rounded-base border-2 shadow-shadow p-4 text-center ${
-        isWinner
-          ? "bg-chart-3/20 border-chart-3"
-          : "bg-red-500/20 border-red-500"
-      }`}
-    >
-      <p className="text-lg font-heading">
-        {isWinner ? "🎉 You won!" : "😔 Game over"}
-      </p>
-      <p className="text-sm opacity-80">{description}</p>
-    </div>
-  );
-};
 
 /** In-game race view — reuses shared Board and KeyBoard components. */
 const RaceRoom: React.FC<RaceRoomProps> = ({
   onLeave,
   onKeyPress,
   keyboardColors,
+  onRequestRematch,
+  onAcceptRematch,
 }) => {
   const { user } = useAuthStore();
-  const { room, roomId, guesses, currentGuess, answer } = useRaceStore();
+  const {
+    room,
+    roomId,
+    guesses,
+    currentGuess,
+    answer,
+    remainingSeconds,
+    timerStatus,
+    rematchFrom,
+  } = useRaceStore();
 
   if (!room || !roomId) return null;
 
@@ -101,11 +50,12 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
   const isPlaying = room.status === "IN_PROGRESS";
 
   const myTurnDone = myPlayer?.status === "WON" || myPlayer?.status === "LOST";
+  const timeExpired = timerStatus === "expired";
 
   const inviteLink = `${window.location.origin}/race/${roomId}`;
 
-  // Board is still interactive when the game is in progress and the player hasn't finished
-  const isBoardActive = isPlaying && !myTurnDone;
+  // Board is still interactive when the game is in progress, the player hasn't finished, and time hasn't expired
+  const isBoardActive = isPlaying && !myTurnDone && !timeExpired;
 
   return (
     <div className="flex flex-col gap-4 w-full h-full">
@@ -118,27 +68,36 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
               Waiting
             </span>
           )}
-          {isPlaying && (
+          {isPlaying && !timeExpired && (
             <span className="inline-flex items-center rounded-base border border-chart-5/40 bg-chart-5/10 px-2 py-0.5 text-xs font-heading text-chart-5">
               Live
             </span>
           )}
-          {isFinished && (
+          {(isFinished || timeExpired) && (
             <span className="inline-flex items-center rounded-base border border-foreground/20 bg-foreground/5 px-2 py-0.5 text-xs font-heading opacity-60">
               Finished
             </span>
           )}
         </div>
 
-        <Button
-          variant="neutral"
-          size="sm"
-          onClick={onLeave}
-          className="flex items-center gap-2"
-        >
-          <LogOut className="size-4" />
-          Leave
-        </Button>
+        <div className="flex items-center gap-3">
+          {(isPlaying || isFinished) && (
+            <RaceTimer
+              remainingSeconds={remainingSeconds}
+              timerStatus={timerStatus}
+            />
+          )}
+
+          <Button
+            variant="neutral"
+            size="sm"
+            onClick={onLeave}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="size-4" />
+            Leave
+          </Button>
+        </div>
       </div>
 
       {isFinished && myPlayer && (
@@ -148,6 +107,10 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
           myGuessCount={guesses.length}
           opponentName={opponent?.username ?? null}
           opponentStatus={opponent?.status ?? null}
+          timeExpired={timeExpired}
+          rematchFrom={rematchFrom}
+          onRequestRematch={onRequestRematch}
+          onAcceptRematch={onAcceptRematch}
         />
       )}
 
@@ -166,7 +129,7 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
           <KeyBoard
             onKeyPress={onKeyPress}
             keyboardColors={keyboardColors}
-            disabled={isWaiting || isFinished || myTurnDone}
+            disabled={isWaiting || isFinished || myTurnDone || timeExpired}
           />
         </div>
 

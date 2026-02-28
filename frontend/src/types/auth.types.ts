@@ -18,3 +18,19 @@ export interface Stats {
   currentStreak: number;
   guessDistribution: Record<number, number>;
 }
+
+export interface RaceStats {
+  totalRaces: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+}
+
+export interface RaceMatch {
+  roomId: string;
+  playerStatus: string;
+  guessCount: number;
+  roomStatus: string;
+  createdAt: string;
+  finishedAt: string | null;
+}

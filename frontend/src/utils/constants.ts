@@ -6,6 +6,7 @@ export const PageRoutes = {
   REGISTER: "/register",
   GAME: "/game",
   RACE: "/race",
+  STATS: "/stats",
 };
 
 export const GAME_STATUS = {

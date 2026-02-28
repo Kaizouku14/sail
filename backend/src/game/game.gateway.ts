@@ -4,7 +4,7 @@ import type {
   SocketData,
 } from '@/common/types/socket-data.type';
 import { RedisService } from '@/redis/redis.service';
-import { Inject, forwardRef } from '@nestjs/common';
+import { Inject, forwardRef, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   WebSocketGateway,
@@ -39,6 +39,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
+  private readonly logger = new Logger(GameGateway.name);
+
+  private roomTimers = new Map<string, ReturnType<typeof setInterval>>();
+
   constructor(
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
@@ -68,6 +72,58 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       'game-events',
       JSON.stringify({ roomId, type, payload }),
     );
+  }
+
+  private startRoomTimer(roomId: string, durationSeconds: number): void {
+    this.clearRoomTimer(roomId);
+
+    const endTime = Date.now() + durationSeconds * 1000;
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+
+      // Emit a tick every 5 seconds to reduce noise, plus the final 10 seconds every second
+      if (remaining % 5 === 0 || remaining <= 10) {
+        void this.publishEvent(roomId, 'TIMER_TICK', {
+          remainingSeconds: remaining,
+        });
+      }
+
+      if (remaining <= 0) {
+        this.clearRoomTimer(roomId);
+        void this.handleTimeUp(roomId);
+      }
+    }, 1000);
+
+    this.roomTimers.set(roomId, interval);
+  }
+
+  private clearRoomTimer(roomId: string): void {
+    const existing = this.roomTimers.get(roomId);
+    if (existing) {
+      clearInterval(existing);
+      this.roomTimers.delete(roomId);
+    }
+  }
+
+  private async handleTimeUp(roomId: string): Promise<void> {
+    try {
+      const room = await this.room.expireRoom(roomId);
+      if (!room) return;
+
+      await this.publishEvent(roomId, 'TIME_UP', {
+        answer: room.word,
+      });
+
+      await this.publishEvent(roomId, 'GAME_OVER', {
+        answer: room.word,
+        reason: 'TIME_UP',
+      });
+    } catch (error: unknown) {
+      this.logger.error(
+        `Timer expiry error for room ${roomId}: ${getErrorMessage(error)}`,
+      );
+    }
   }
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
@@ -112,8 +168,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!user || !roomId) return;
 
-      await this.room.removePlayer(roomId, user.id);
-
+      // Don't remove from room immediately — allow reconnection.
+      // Only publish a PLAYER_LEFT event so the opponent sees it.
       await this.publishEvent(roomId, 'PLAYER_LEFT', { playerId: user.id });
 
       await this.redis.del(`socket:${user.id}`);
@@ -131,10 +187,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const room = await this.room.createRoom(user.id, user.username);
 
       await client.join(room.id);
-
       data.roomId = room.id;
 
-      return { event: 'ROOM_CREATED', data: room };
+      const publicState = this.room.getPublicRoomState(room);
+      return { event: 'ROOM_CREATED', data: publicState };
     } catch (error: unknown) {
       client.emit('ERROR', { message: getErrorMessage(error) });
     }
@@ -153,7 +209,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       await client.join(payload.roomId);
-
       data.roomId = payload.roomId;
 
       await this.publishEvent(payload.roomId, 'PLAYER_JOINED', {
@@ -161,7 +216,68 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         username: user.username,
       });
 
-      return { event: 'ROOM_STATE', data: room };
+      // If the room just became IN_PROGRESS (2 players), start the timer
+      if (room.status === ROOM_STATUS.IN_PROGRESS && room.startedAt) {
+        const remaining = this.room.getRemainingSeconds(room);
+        if (
+          remaining !== null &&
+          remaining > 0 &&
+          !this.roomTimers.has(room.id)
+        ) {
+          this.startRoomTimer(room.id, remaining);
+
+          // Broadcast TIMER_START so clients know the match duration
+          await this.publishEvent(room.id, 'TIMER_START', {
+            remainingSeconds: remaining,
+            timeLimit: room.timeLimit,
+          });
+        }
+      }
+
+      const publicState = this.room.getPublicRoomState(room);
+      return { event: 'ROOM_STATE', data: publicState };
+    } catch (error: unknown) {
+      client.emit('ERROR', { message: getErrorMessage(error) });
+    }
+  }
+
+  @SubscribeMessage('rejoinRoom')
+  async handleRejoinRoom(
+    client: AuthenticatedSocket,
+    payload?: { roomId?: string },
+  ) {
+    try {
+      const data = this.getSocketData(client);
+      const user: JwtPayload = data.user;
+
+      // If roomId is specified, use that. Otherwise look up the user's active room.
+      const room = payload?.roomId
+        ? await this.room.getRoomState(payload.roomId)
+        : await this.room.getUserActiveRoom(user.id);
+
+      if (!room) {
+        client.emit('ERROR', { message: 'No active room found' });
+        return;
+      }
+
+      // Verify user is actually in this room
+      const isInRoom = room.players.some((p) => p.id === user.id);
+      if (!isInRoom) {
+        client.emit('ERROR', { message: 'You are not in this room' });
+        return;
+      }
+
+      await client.join(room.id);
+      data.roomId = room.id;
+      await this.redis.set(`socket:${user.id}`, client.id, 60 * 60 * 24);
+
+      await this.publishEvent(room.id, 'PLAYER_REJOINED', {
+        playerId: user.id,
+        username: user.username,
+      });
+
+      const publicState = this.room.getPublicRoomState(room);
+      return { event: 'ROOM_STATE', data: publicState };
     } catch (error: unknown) {
       client.emit('ERROR', { message: getErrorMessage(error) });
     }
@@ -185,6 +301,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const room = await this.room.getRoomState(roomId);
       if (!room) {
         client.emit('ERROR', { message: 'Room not found' });
+        return;
+      }
+
+      // Check if time is already up
+      if (this.room.isTimeUp(room)) {
+        await this.handleTimeUp(roomId);
+        client.emit('ERROR', { message: 'Time is up' });
         return;
       }
 
@@ -230,6 +353,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       if (allFinished) {
+        this.clearRoomTimer(roomId);
         await this.room.finalizeRoom(roomId, room);
       } else {
         await this.redis.set(
@@ -259,8 +383,97 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       if (allFinished) {
-        await this.publishEvent(roomId, 'GAME_OVER', { answer: room.word });
+        await this.publishEvent(roomId, 'GAME_OVER', {
+          answer: room.word,
+          reason: 'ALL_FINISHED',
+        });
       }
+    } catch (error: unknown) {
+      client.emit('ERROR', { message: getErrorMessage(error) });
+    }
+  }
+
+  @SubscribeMessage('requestRematch')
+  async handleRequestRematch(
+    client: AuthenticatedSocket,
+    payload: { roomId: string },
+  ) {
+    try {
+      const data = this.getSocketData(client);
+      const user: JwtPayload = data.user;
+
+      const newRoom = await this.room.createRematch(
+        payload.roomId,
+        user.id,
+        user.username,
+      );
+
+      // Join the new room immediately
+      await client.join(newRoom.id);
+      data.roomId = newRoom.id;
+
+      // Notify everyone in the old room about the rematch offer
+      await this.publishEvent(payload.roomId, 'REMATCH_OFFER', {
+        newRoomId: newRoom.id,
+        fromPlayerId: user.id,
+        fromUsername: user.username,
+      });
+
+      const publicState = this.room.getPublicRoomState(newRoom);
+      return { event: 'ROOM_CREATED', data: publicState };
+    } catch (error: unknown) {
+      client.emit('ERROR', { message: getErrorMessage(error) });
+    }
+  }
+
+  @SubscribeMessage('acceptRematch')
+  async handleAcceptRematch(
+    client: AuthenticatedSocket,
+    payload: { previousRoomId: string },
+  ) {
+    try {
+      const data = this.getSocketData(client);
+      const user: JwtPayload = data.user;
+
+      const newRoomId = await this.room.getRematchRoom(payload.previousRoomId);
+      if (!newRoomId) {
+        client.emit('ERROR', { message: 'Rematch room not found or expired' });
+        return;
+      }
+
+      const room = await this.room.joinRoom(newRoomId, user.id, user.username);
+
+      await client.join(newRoomId);
+      data.roomId = newRoomId;
+
+      await this.publishEvent(newRoomId, 'PLAYER_JOINED', {
+        playerId: user.id,
+        username: user.username,
+      });
+
+      await this.publishEvent(payload.previousRoomId, 'REMATCH_ACCEPTED', {
+        newRoomId,
+      });
+
+      // Start the timer if the room is now IN_PROGRESS
+      if (room.status === ROOM_STATUS.IN_PROGRESS && room.startedAt) {
+        const remaining = this.room.getRemainingSeconds(room);
+        if (
+          remaining !== null &&
+          remaining > 0 &&
+          !this.roomTimers.has(room.id)
+        ) {
+          this.startRoomTimer(room.id, remaining);
+
+          await this.publishEvent(room.id, 'TIMER_START', {
+            remainingSeconds: remaining,
+            timeLimit: room.timeLimit,
+          });
+        }
+      }
+
+      const publicState = this.room.getPublicRoomState(room);
+      return { event: 'ROOM_STATE', data: publicState };
     } catch (error: unknown) {
       client.emit('ERROR', { message: getErrorMessage(error) });
     }

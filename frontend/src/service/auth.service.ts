@@ -1,5 +1,10 @@
 import api from "./api";
-import type { AuthResponse, Stats } from "@/types/auth.types";
+import type {
+  AuthResponse,
+  Stats,
+  RaceStats,
+  RaceMatch,
+} from "@/types/auth.types";
 import { useAuthStore } from "@/store";
 
 interface RegisterPayload {
@@ -49,5 +54,15 @@ export const authService = {
   async getStats(): Promise<Stats> {
     const { data } = await api.get<Stats>("/auth/stats");
     return data;
+  },
+
+  async getRaceStats(): Promise<RaceStats> {
+    const { data } = await api.get<RaceStats>("/race/stats");
+    return data;
+  },
+
+  async getRaceHistory(): Promise<RaceMatch[]> {
+    const { data } = await api.get<{ matches: RaceMatch[] }>("/race/history");
+    return data.matches;
   },
 };
