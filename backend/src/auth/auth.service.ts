@@ -36,6 +36,12 @@ export class AuthService {
       })
       .returning();
 
+    const token = this.jwt.sign({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+    });
+
     return {
       message: 'User registered successfully',
       user: {
@@ -43,6 +49,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
       },
+      token,
     };
   }
 
@@ -73,7 +80,7 @@ export class AuthService {
     });
 
     return {
-      message: 'User logged in successfully',
+      message: 'You have successfully logged in.',
       user: {
         id: isEmailExists.id,
         username: isEmailExists.username,

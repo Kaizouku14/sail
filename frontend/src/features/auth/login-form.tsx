@@ -1,5 +1,6 @@
 import React from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { loginFormSchema, type LoginFormSchema } from "./schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -21,9 +22,14 @@ import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageRoutes } from "@/utils/constants";
+import { authService } from "@/service/auth.service";
+import { getApiErrorMessage } from "@/service/api";
+import { sileo } from "sileo";
+import { SubmitButton } from "@/components/form/submit-button";
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const navigate = useNavigate();
 
   const form = useForm<LoginFormSchema>({
     resolver: zodResolver(loginFormSchema),
@@ -33,7 +39,31 @@ const LoginForm = () => {
     },
   });
 
-  const onSubmit = (data: LoginFormSchema) => {};
+  const { isSubmitting } = form.formState;
+
+  const onSubmit = async (values: LoginFormSchema) => {
+    try {
+      const data = await authService.login(values);
+
+      sileo.success({
+        title: "Login successful",
+        description: data.message,
+      });
+
+      navigate(PageRoutes.GAME);
+    } catch (error: unknown) {
+      const message = getApiErrorMessage(error);
+
+      sileo.error({
+        title: "Login failed",
+        description: message,
+      });
+    }
+  };
+
+  const handleGuestContinue = () => {
+    navigate(PageRoutes.GAME);
+  };
 
   return (
     <Card className="w-full max-w-sm h-fit bg-main-foreground/20">
@@ -53,7 +83,11 @@ const LoginForm = () => {
                 <FormItem>
                   <FormLabel>Email Address</FormLabel>
                   <FormControl>
-                    <Input placeholder="i.e. john@example.com" {...field} />
+                    <Input
+                      placeholder="i.e. john@example.com"
+                      disabled={isSubmitting}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -71,6 +105,7 @@ const LoginForm = () => {
                       <Input
                         type={showPassword ? "text" : "password"}
                         placeholder="Enter your password"
+                        disabled={isSubmitting}
                         {...field}
                       />
                     </FormControl>
@@ -93,10 +128,19 @@ const LoginForm = () => {
               )}
             />
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="w-full">
+              <SubmitButton
+                isSubmitting={isSubmitting}
+                loadingText="Logging in..."
+              >
                 Login
-              </Button>
-              <Button variant="neutral" className="w-full">
+              </SubmitButton>
+              <Button
+                type="button"
+                variant="neutral"
+                className="w-full"
+                disabled={isSubmitting}
+                onClick={handleGuestContinue}
+              >
                 Continue as Guest
               </Button>
               <div className="mt-4 text-center text-sm">

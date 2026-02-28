@@ -17,6 +17,11 @@ async function bootstrap() {
     secret: process.env.COOKIE_SECRET,
   });
 
+  app.enableCors({
+    origin: process.env.BASE_URL,
+    credentials: true,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // strips properties not in the DTO

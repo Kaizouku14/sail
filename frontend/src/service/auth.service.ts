@@ -1,4 +1,3 @@
-import { PageRoutes } from "@/utils/constants";
 import api from "./api";
 import type { AuthResponse, Stats } from "@/types/auth.types";
 
@@ -16,6 +15,11 @@ interface LoginPayload {
 export const authService = {
   async register(payload: RegisterPayload): Promise<AuthResponse> {
     const { data } = await api.post<AuthResponse>("/auth/register", payload);
+
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+    }
+
     return data;
   },
 
@@ -29,9 +33,12 @@ export const authService = {
     return data;
   },
 
-  async logout(): Promise<void> {
+  logout(): void {
     localStorage.removeItem("token");
-    window.location.href = PageRoutes.LOGIN;
+  },
+
+  isAuthenticated(): boolean {
+    return !!localStorage.getItem("token");
   },
 
   async getStats(): Promise<Stats> {

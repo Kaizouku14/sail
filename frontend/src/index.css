@@ -46,6 +46,10 @@
     --font-family: var(--font-family);
 }
 
+[data-sileo-description] {
+    text-align: center !important;
+}
+
 @layer base {
     body {
         @apply text-foreground font-base bg-background font-family;
