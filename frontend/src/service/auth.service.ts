@@ -1,5 +1,6 @@
 import api from "./api";
 import type { AuthResponse, Stats } from "@/types/auth.types";
+import { useAuthStore } from "@/store";
 
 interface RegisterPayload {
   username: string;
@@ -16,8 +17,8 @@ export const authService = {
   async register(payload: RegisterPayload): Promise<AuthResponse> {
     const { data } = await api.post<AuthResponse>("/auth/register", payload);
 
-    if (data.token) {
-      localStorage.setItem("token", data.token);
+    if (data.token && data.user) {
+      useAuthStore.getState().setUser(data.user, data.token);
     }
 
     return data;
@@ -26,19 +27,19 @@ export const authService = {
   async login(payload: LoginPayload): Promise<AuthResponse> {
     const { data } = await api.post<AuthResponse>("/auth/login", payload);
 
-    if (data.token) {
-      localStorage.setItem("token", data.token);
+    if (data.token && data.user) {
+      useAuthStore.getState().setUser(data.user, data.token);
     }
 
     return data;
   },
 
   logout(): void {
-    localStorage.removeItem("token");
+    useAuthStore.getState().clearUser();
   },
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem("token");
+    return useAuthStore.getState().isAuthenticated;
   },
 
   async getStats(): Promise<Stats> {

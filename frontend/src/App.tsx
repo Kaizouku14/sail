@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { Toaster } from "sileo";
 import { Game, Login, Register } from "./pages";
+import AuthLayout from "./layouts/auth";
 import GameLayout from "./layouts/game";
 
 function App() {
@@ -14,8 +15,10 @@ function App() {
       />
 
       <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route element={<AuthLayout />}>
+          <Route path="/" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Route>
 
         <Route path="/game" element={<GameLayout />}>
           <Route index element={<Game />} />

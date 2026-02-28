@@ -1,5 +1,6 @@
 import { config } from "@/utils/config";
 import { PageRoutes } from "@/utils/constants";
+import { useAuthStore } from "@/store";
 import axios, { AxiosError } from "axios";
 
 const api = axios.create({
@@ -11,7 +12,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((axiosConfig) => {
-  const token = localStorage.getItem("token");
+  const token = useAuthStore.getState().token;
   if (token) {
     axiosConfig.headers.Authorization = `Bearer ${token}`;
   }
@@ -46,7 +47,7 @@ api.interceptors.response.use(
       const currentPath = window.location.pathname;
 
       if (!AUTH_PAGES.includes(currentPath)) {
-        localStorage.removeItem("token");
+        useAuthStore.getState().clearUser();
         window.location.href = PageRoutes.LOGIN;
       }
     }
