@@ -31,7 +31,7 @@ export class GameService {
 
   async getOrCreateGameState(
     sessionId: string,
-    userId: string,
+    userId: string | null,
   ): Promise<GameState> {
     const key = this.getRedisKey(sessionId);
 
@@ -52,7 +52,7 @@ export class GameService {
 
   private async createNewGameState(
     sessionId: string,
-    userId: string,
+    userId: string | null,
   ): Promise<GameState> {
     const state: GameState = {
       answer: this.getDailyWord(),
@@ -62,8 +62,10 @@ export class GameService {
       maxGuesses: this.MAX_GUESSES,
     };
 
-    // Ensure there's a game_sessions row linked to the user
-    await this.ensureSessionInDB(sessionId, userId);
+    // Only persist to DB for authenticated users
+    if (userId) {
+      await this.ensureSessionInDB(sessionId, userId);
+    }
 
     await this.saveGameState(sessionId, state);
     return state;
@@ -119,7 +121,7 @@ export class GameService {
     return results;
   }
 
-  async submitGuess(guess: string, sessionId: string, userId: string) {
+  async submitGuess(guess: string, sessionId: string, userId: string | null) {
     const state = await this.getOrCreateGameState(sessionId, userId);
 
     if (state.status === GAME_STATUS.WON || state.status === GAME_STATUS.LOST) {
@@ -134,19 +136,25 @@ export class GameService {
     const results = this.evaluateWord(guess, state.answer);
     state.guesses.push({ word: guess, results });
 
-    // Persist individual guess to the guesses table
-    await this.saveGuessToDB(sessionId, guess, results);
+    // Persist individual guess to the guesses table (authenticated users only)
+    if (userId) {
+      await this.saveGuessToDB(sessionId, guess, results);
+    }
 
     const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
     let result: GameStatusType;
     if (isWon) {
       result = GAME_STATUS.WON as GameStatusType;
       state.status = result;
-      await this.finalizeSession(sessionId, result, state.guesses.length);
+      if (userId) {
+        await this.finalizeSession(sessionId, result, state.guesses.length);
+      }
     } else if (state.guesses.length === state.maxGuesses) {
       result = GAME_STATUS.LOST as GameStatusType;
       state.status = result;
-      await this.finalizeSession(sessionId, result, state.guesses.length);
+      if (userId) {
+        await this.finalizeSession(sessionId, result, state.guesses.length);
+      }
     }
 
     await this.saveGameState(sessionId, state);

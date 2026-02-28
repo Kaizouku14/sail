@@ -5,6 +5,7 @@ import { SubmitGuessDto } from './dto/submit-guess.dto';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthGuard } from '@/auth/auth.guard';
+import { OptionalAuthGuard } from '@/common/guard/optional-auth.guard';
 import { RateLimit, RateLimitGuard } from '@/common/guard/rate-limit.guard';
 import { GAME_STATUS } from '@/common/constants/game-state.constants';
 import {
@@ -44,11 +45,11 @@ export class GameController {
   }
 
   @Post('guess')
-  @UseGuards(AuthGuard, RateLimitGuard)
+  @UseGuards(OptionalAuthGuard, RateLimitGuard)
   @RateLimit(10, 60)
   async guess(
     @Body() body: SubmitGuessDto,
-    @CurrentUser() user: JwtPayload,
+    @CurrentUser() user: JwtPayload | undefined,
     @Req() req: FastifyRequest,
     @Res() res: FastifyReply,
   ) {
@@ -66,14 +67,14 @@ export class GameController {
     const result = await this.gameService.submitGuess(
       body.word,
       sessionId,
-      user.id,
+      user?.id ?? null,
     );
 
     return res.send(result);
   }
 
   @Get('state')
-  @UseGuards(AuthGuard)
+  @UseGuards(OptionalAuthGuard)
   async state(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
     const sessionId = req.cookies['sessionId'];
 
