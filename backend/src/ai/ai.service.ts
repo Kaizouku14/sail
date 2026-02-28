@@ -11,11 +11,11 @@ export class AIService {
   private readonly client: Groq;
   private readonly model: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(private readonly config: ConfigService) {
     this.client = new Groq({
-      apiKey: this.configService.get<string>('GROQ_API_KEY'),
+      apiKey: this.config.get<string>('GROQ_API_KEY'),
     });
-    this.model = this.configService.get<string>('GROQ_MODEL')!;
+    this.model = this.config.get<string>('GROQ_MODEL')!;
   }
 
   async generateHint(answer: string, guesses: string[]): Promise<string> {

@@ -43,6 +43,7 @@ export class RoomService {
           guesses: 0,
           status: PLAYER_STATUS.PLAYING as PlayerStatusType,
           socketId: '',
+          guessColors: [],
         },
       ],
     };

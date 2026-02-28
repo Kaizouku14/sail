@@ -10,6 +10,7 @@ export interface Player {
   guesses: number;
   status: PlayerStatusType;
   socketId: string;
+  guessColors: string[][];
 }
 
 export interface RoomState {

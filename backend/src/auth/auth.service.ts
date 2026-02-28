@@ -12,7 +12,7 @@ import { LoginDto } from './dto/login.dto';
 export class AuthService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly jwtService: JwtService,
+    private readonly jwt: JwtService,
   ) {}
 
   async register(input: RegisterDto) {
@@ -66,7 +66,7 @@ export class AuthService {
       throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
     }
 
-    const token = this.jwtService.sign({
+    const token = this.jwt.sign({
       id: isEmailExists.id,
       username: isEmailExists.username,
       email: isEmailExists.email,

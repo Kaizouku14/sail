@@ -9,23 +9,23 @@ import { RateLimit, RateLimitGuard } from '@/common/guard/rate-limit.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
   @Post('login')
   @UseGuards(RateLimitGuard)
   @RateLimit(5, 60)
   async login(@Body() body: LoginDto) {
-    return await this.authService.login(body);
+    return await this.auth.login(body);
   }
 
   @Post('register')
   async register(@Body() body: RegisterDto) {
-    return await this.authService.register(body);
+    return await this.auth.register(body);
   }
 
   @Get('stats')
   @UseGuards(AuthGuard)
   async getStats(@CurrentUser() user: JwtPayload) {
-    return this.authService.getStats(user.id);
+    return this.auth.getStats(user.id);
   }
 }

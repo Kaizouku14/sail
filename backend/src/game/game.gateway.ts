@@ -212,6 +212,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       player.guesses += 1;
+      player.guessColors = player.guessColors ?? [];
+      player.guessColors.push(results.map((r) => r));
 
       const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
       if (isWon) {
@@ -241,6 +243,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         playerId: user.id,
         guessNumber: player.guesses,
         results,
+      });
+
+      await this.publishEvent(roomId, 'OPPONENT_GUESS', {
+        playerId: user.id,
+        guessNumber: player.guesses,
+        colors: results.map((r) => r),
       });
 
       if (isWon) {

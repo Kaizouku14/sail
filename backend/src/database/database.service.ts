@@ -9,11 +9,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool;
   db: ReturnType<typeof drizzle>;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private config: ConfigService) {}
 
   onModuleInit() {
     this.pool = new Pool({
-      connectionString: this.configService.get<string>('DATABASE_URL'),
+      connectionString: this.config.get<string>('DATABASE_URL'),
     });
     this.db = drizzle(this.pool, { schema });
   }

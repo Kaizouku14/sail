@@ -21,7 +21,7 @@ export const RateLimit = (limit: number, windowSeconds: number) =>
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   constructor(
-    private readonly redisService: RedisService,
+    private readonly redis: RedisService,
     private readonly reflector: Reflector,
   ) {}
 
@@ -45,10 +45,10 @@ export class RateLimitGuard implements CanActivate {
     const windowStart = now - windowSeconds * 1000;
 
     // sliding window in Redis
-    await this.redisService.zremrangebyscore(key, 0, windowStart);
-    await this.redisService.zadd(key, now, `${now}`);
-    await this.redisService.expire(key, windowSeconds);
-    const count: number = await this.redisService.zcard(key);
+    await this.redis.zremrangebyscore(key, 0, windowStart);
+    await this.redis.zadd(key, now, `${now}`);
+    await this.redis.expire(key, windowSeconds);
+    const count: number = await this.redis.zcard(key);
 
     if (count > limit) {
       throw new HttpException(

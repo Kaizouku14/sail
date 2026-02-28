@@ -15,8 +15,8 @@ export class GameService {
   private readonly SESSION_TTL = 60 * 60 * 24; // 24 hours
 
   constructor(
-    private wordService: WordService,
-    private redisService: RedisService,
+    private word: WordService,
+    private redis: RedisService,
     private database: DatabaseService,
   ) {}
 
@@ -35,7 +35,7 @@ export class GameService {
   ): Promise<GameState> {
     const key = this.getRedisKey(sessionId);
 
-    const existing = await this.redisService.get(key);
+    const existing = await this.redis.get(key);
 
     if (existing) {
       const state = JSON.parse(existing) as GameState;
@@ -71,17 +71,17 @@ export class GameService {
 
   async saveGameState(sessionId: string, state: GameState): Promise<void> {
     const key = this.getRedisKey(sessionId);
-    await this.redisService.set(key, JSON.stringify(state), this.SESSION_TTL);
+    await this.redis.set(key, JSON.stringify(state), this.SESSION_TTL);
   }
 
   async getGameState(sessionId: string): Promise<GameState | null> {
     const key = this.getRedisKey(sessionId);
-    const existing = await this.redisService.get(key);
+    const existing = await this.redis.get(key);
     return existing ? (JSON.parse(existing) as GameState) : null;
   }
 
   getDailyWord(): string {
-    const words = this.wordService.getAnswerWords();
+    const words = this.word.getAnswerWords();
     const epoch = new Date('2026-01-01').getTime();
     const today = new Date();
     const utcToday = Date.UTC(
@@ -126,7 +126,7 @@ export class GameService {
       throw new HttpException('Game already finished', HttpStatus.BAD_REQUEST);
     }
 
-    const isValid = this.wordService.isValid(guess);
+    const isValid = this.word.isValid(guess);
     if (!isValid) {
       throw new HttpException('Invalid word', HttpStatus.UNPROCESSABLE_ENTITY);
     }
@@ -159,10 +159,6 @@ export class GameService {
     };
   }
 
-  /**
-   * Create the game_sessions row when a new game starts, linking it to the user.
-   * Uses onConflictDoNothing so we don't overwrite an existing session.
-   */
   private async ensureSessionInDB(
     sessionId: string,
     userId: string,
@@ -178,9 +174,6 @@ export class GameService {
       .onConflictDoNothing({ target: gameSessions.sessionId });
   }
 
-  /**
-   * Update the session with the final status and guess count when the game ends.
-   */
   private async finalizeSession(
     sessionId: string,
     status: GameStatusType,
@@ -192,10 +185,6 @@ export class GameService {
       .where(eq(gameSessions.sessionId, sessionId));
   }
 
-  /**
-   * Persist an individual guess to the guesses table.
-   * Looks up the game_sessions row by sessionId to get the FK id.
-   */
   private async saveGuessToDB(
     sessionId: string,
     word: string,
