@@ -1,13 +1,15 @@
 import { useAuthStore } from "@/store";
 import { authService } from "@/service/auth.service";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PageRoutes } from "@/utils/constants";
-import { LogIn, LogOut, User } from "lucide-react";
+import { LogIn, LogOut, User, Swords } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const Header = () => {
   const { isAuthenticated, isGuest, user } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     authService.logout();
@@ -19,9 +21,42 @@ const Header = () => {
     navigate(PageRoutes.LOGIN);
   };
 
+  const isActive = (path: string) => location.pathname.startsWith(path);
+
   return (
     <div className="flex justify-between items-center py-4">
-      <div className="text-2xl font-bold">Wordle</div>
+      <div className="flex items-center gap-6">
+        <div className="text-2xl font-bold">Wordle</div>
+
+        <nav className="flex items-center gap-1">
+          <button
+            onClick={() => navigate(PageRoutes.GAME)}
+            className={cn(
+              "px-3 py-1.5 rounded-base text-sm font-heading transition-colors",
+              isActive(PageRoutes.GAME)
+                ? "bg-main/15 text-main"
+                : "text-foreground/60 hover:text-foreground hover:bg-foreground/5",
+            )}
+          >
+            Solo
+          </button>
+
+          {isAuthenticated && (
+            <button
+              onClick={() => navigate(PageRoutes.RACE)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-base text-sm font-heading transition-colors",
+                isActive(PageRoutes.RACE)
+                  ? "bg-main/15 text-main"
+                  : "text-foreground/60 hover:text-foreground hover:bg-foreground/5",
+              )}
+            >
+              <Swords className="size-3.5" />
+              Race
+            </button>
+          )}
+        </nav>
+      </div>
 
       <div className="flex items-center gap-3">
         {isAuthenticated && user && (

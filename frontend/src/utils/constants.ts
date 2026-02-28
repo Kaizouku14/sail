@@ -5,6 +5,7 @@ export const PageRoutes = {
   LOGIN: "/",
   REGISTER: "/register",
   GAME: "/game",
+  RACE: "/race",
 };
 
 export const GAME_STATUS = {
