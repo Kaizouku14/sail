@@ -17,15 +17,3 @@ export interface GameState {
   guessesRemaining: number;
   answer?: string; // only present when game ends
 }
-
-export interface GuessResponse {
-  results: { letter: string; status: string }[];
-  status: string;
-  guessesRemaining: number;
-  answer?: string;
-}
-
-export interface HintResponse {
-  hint: string;
-  hintsRemaining: number;
-}

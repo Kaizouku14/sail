@@ -1,9 +1,17 @@
 import api from "./api";
-import type {
-  GameState,
-  GuessResponse,
-  HintResponse,
-} from "@/types/game.types";
+import type { GameState } from "@/types/game.types";
+
+interface GuessResponse {
+  results: { letter: string; status: string }[];
+  status: string;
+  guessesRemaining: number;
+  answer?: string;
+}
+
+interface HintResponse {
+  hint: string;
+  hintsRemaining: number;
+}
 
 export const gameService = {
   async submitGuess(word: string): Promise<GuessResponse> {

@@ -1,11 +1,17 @@
 import { PageRoutes } from "@/utils/constants";
 import api from "./api";
-import type {
-  AuthResponse,
-  LoginPayload,
-  RegisterPayload,
-  Stats,
-} from "@/types/auth.types";
+import type { AuthResponse, Stats } from "@/types/auth.types";
+
+interface RegisterPayload {
+  username: string;
+  email: string;
+  password: string;
+}
+
+interface LoginPayload {
+  email: string;
+  password: string;
+}
 
 export const authService = {
   async register(payload: RegisterPayload): Promise<AuthResponse> {
