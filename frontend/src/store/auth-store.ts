@@ -7,13 +7,16 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isGuest: boolean;
+
   setUser: (user: User, token: string) => void;
+  setGuest: () => void;
   clearUser: () => void;
+  canAccessGame: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -23,8 +26,22 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token, isAuthenticated: true, isGuest: false });
       },
 
-      clearUser() {
+      setGuest() {
         set({ user: null, token: null, isAuthenticated: false, isGuest: true });
+      },
+
+      clearUser() {
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isGuest: false,
+        });
+      },
+
+      canAccessGame() {
+        const state = get();
+        return state.isAuthenticated || state.isGuest;
       },
     }),
     {

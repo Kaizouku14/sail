@@ -4,9 +4,9 @@ import { PageRoutes } from "@/utils/constants";
 import { Ship } from "lucide-react";
 
 const AuthLayout = () => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isGuest } = useAuthStore();
 
-  if (isAuthenticated) {
+  if (isAuthenticated || isGuest) {
     return <Navigate to={PageRoutes.GAME} replace />;
   }
 

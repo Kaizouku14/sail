@@ -38,6 +38,10 @@ export const authService = {
     useAuthStore.getState().clearUser();
   },
 
+  continueAsGuest(): void {
+    useAuthStore.getState().setGuest();
+  },
+
   isAuthenticated(): boolean {
     return useAuthStore.getState().isAuthenticated;
   },

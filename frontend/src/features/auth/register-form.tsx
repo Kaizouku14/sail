@@ -63,6 +63,7 @@ const RegisterForm = () => {
   };
 
   const handleGuestContinue = () => {
+    authService.continueAsGuest();
     navigate(PageRoutes.GAME);
   };
 

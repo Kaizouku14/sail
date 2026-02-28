@@ -45,8 +45,13 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname;
+      const { isAuthenticated, isGuest } = useAuthStore.getState();
 
-      if (!AUTH_PAGES.includes(currentPath)) {
+      // Only redirect if:
+      // 1. We're not already on an auth page
+      // 2. The user was previously authenticated (token expired)
+      // Guests should NOT be redirected — they'll see an inline error instead
+      if (!AUTH_PAGES.includes(currentPath) && isAuthenticated && !isGuest) {
         useAuthStore.getState().clearUser();
         window.location.href = PageRoutes.LOGIN;
       }

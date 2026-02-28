@@ -26,7 +26,6 @@ import { authService } from "@/service/auth.service";
 import { getApiErrorMessage } from "@/service/api";
 import { sileo } from "sileo";
 import { SubmitButton } from "@/components/form/submit-button";
-
 const LoginForm = () => {
   const [showPassword, setShowPassword] = React.useState(false);
   const navigate = useNavigate();
@@ -62,6 +61,7 @@ const LoginForm = () => {
   };
 
   const handleGuestContinue = () => {
+    authService.continueAsGuest();
     navigate(PageRoutes.GAME);
   };
 
