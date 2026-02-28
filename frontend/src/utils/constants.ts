@@ -6,3 +6,15 @@ export const PageRoutes = {
   REGISTER: "/register",
   GAME: "/game",
 };
+
+export const GAME_STATUS = {
+  IN_PROGRESS: "IN_PROGRESS",
+  WON: "WON",
+  LOST: "LOST",
+};
+
+export const TILE_STATUS = {
+  CORRECT: "CORRECT",
+  PRESENT: "PRESENT",
+  ABSENT: "ABSENT",
+};
