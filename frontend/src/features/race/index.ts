@@ -3,6 +3,6 @@ import RaceRoom from "./race-room";
 import OpponentBoard from "./opponent-board";
 import PlayerList from "./player-list";
 import InviteLink from "./invite-link";
-import { useRace } from "./use-race";
+import { useRace } from "../../hooks/use-race";
 
 export { RaceLobby, RaceRoom, OpponentBoard, PlayerList, InviteLink, useRace };

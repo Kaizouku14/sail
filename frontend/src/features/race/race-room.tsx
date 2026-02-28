@@ -1,13 +1,12 @@
 import { useAuthStore } from "@/store";
 import { useRaceStore } from "@/store";
-import { KeyBoard } from "@/features/game";
+import { Board, KeyBoard } from "@/features/game";
 import OpponentBoard from "./opponent-board";
 import PlayerList from "./player-list";
 import InviteLink from "./invite-link";
 import { Button } from "@/components/ui/button";
 import { LogOut, Clock } from "lucide-react";
 import type { TileStatus } from "@/types/game.types";
-import { MAX_GUESSES, WORD_LENGTH } from "@/utils/constants";
 
 interface RaceRoomProps {
   onLeave: () => void;
@@ -82,6 +81,7 @@ const GameOverBanner = ({
   );
 };
 
+/** In-game race view — reuses shared Board and KeyBoard components. */
 const RaceRoom: React.FC<RaceRoomProps> = ({
   onLeave,
   onKeyPress,
@@ -104,40 +104,8 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
 
   const inviteLink = `${window.location.origin}/race/${roomId}`;
 
-  const rows: { letter: string; status: TileStatus }[][] = [];
-
-  for (const guess of guesses) {
-    rows.push(
-      guess.results.map((r) => ({
-        letter: r.letter.toUpperCase(),
-        status: r.status,
-      })),
-    );
-  }
-
-  if (rows.length < MAX_GUESSES && !myTurnDone && isPlaying) {
-    const currentRow: { letter: string; status: TileStatus }[] = [];
-    for (let i = 0; i < WORD_LENGTH; i++) {
-      if (i < currentGuess.length) {
-        currentRow.push({
-          letter: currentGuess[i].toUpperCase(),
-          status: "ACTIVE",
-        });
-      } else {
-        currentRow.push({ letter: "", status: "EMPTY" });
-      }
-    }
-    rows.push(currentRow);
-  }
-
-  while (rows.length < MAX_GUESSES) {
-    rows.push(
-      Array.from({ length: WORD_LENGTH }, () => ({
-        letter: "",
-        status: "EMPTY" as TileStatus,
-      })),
-    );
-  }
+  // Board is still interactive when the game is in progress and the player hasn't finished
+  const isBoardActive = isPlaying && !myTurnDone;
 
   return (
     <div className="flex flex-col gap-4 w-full h-full">
@@ -189,25 +157,11 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
             <WaitingOverlay roomId={roomId} inviteLink={inviteLink} />
           )}
 
-          <div className="grid grid-rows-6 max-w-sm mx-auto h-105 w-full gap-1.5">
-            {rows.map((row, rowIndex) => (
-              <div key={rowIndex} className="grid grid-cols-5 gap-1.5">
-                {row.map((tile, colIndex) => (
-                  <div
-                    key={colIndex}
-                    className={`flex items-center justify-center border-2 text-2xl font-bold select-none aspect-square transition-transform duration-100 ${tileStyle(tile.status)} ${
-                      (tile.status === "CORRECT" ||
-                        tile.status === "PRESENT" ||
-                        tile.status === "ABSENT") &&
-                      "animate-flip"
-                    } ${tile.letter && tile.status === "ACTIVE" && "animate-pop"}`}
-                  >
-                    {tile.letter}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          <Board
+            guesses={guesses}
+            currentGuess={currentGuess}
+            isActive={isBoardActive}
+          />
 
           <KeyBoard
             onKeyPress={onKeyPress}
@@ -242,21 +196,5 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
     </div>
   );
 };
-
-function tileStyle(status: TileStatus): string {
-  switch (status) {
-    case "CORRECT":
-      return "bg-chart-3 border-chart-3 text-neutral-100";
-    case "PRESENT":
-      return "bg-chart-2 border-chart-2 text-neutral-100";
-    case "ABSENT":
-      return "bg-secondary-background border-secondary-background text-neutral-100";
-    case "ACTIVE":
-      return "bg-transparent border-foreground text-foreground";
-    case "EMPTY":
-    default:
-      return "bg-transparent border-border/40 text-transparent";
-  }
-}
 
 export default RaceRoom;

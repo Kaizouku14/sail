@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useRace } from "./use-race";
+import { useRace } from "../../hooks/use-race";
 import { useAuthStore } from "@/store";
 import { PageRoutes } from "@/utils/constants";
 import { Loader2, Plus, LogIn, Swords } from "lucide-react";

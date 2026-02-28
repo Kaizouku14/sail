@@ -1,49 +1,28 @@
-import { useGameStore } from "@/store";
 import Tile from "./tile";
-import { MAX_GUESSES, WORD_LENGTH } from "@/utils/constants";
-import type { TileStatus } from "@/types/game.types";
+import type { Guess } from "@/types/game.types";
+import { useGameStore } from "@/store";
+import { useBoardRows } from "@/hooks/use-board-rows";
 
-const Board = () => {
-  const { guesses, currentGuess, status } = useGameStore();
+interface BoardProps {
+  guesses?: Guess[];
+  currentGuess?: string;
+  isActive?: boolean;
+}
 
-  const rows: { letter: string; status: TileStatus }[][] = [];
+const Board: React.FC<BoardProps> = ({
+  guesses: externalGuesses,
+  currentGuess: externalCurrentGuess,
+  isActive: externalIsActive,
+}) => {
+  const storeGuesses = useGameStore((s) => s.guesses);
+  const storeCurrentGuess = useGameStore((s) => s.currentGuess);
+  const storeStatus = useGameStore((s) => s.status);
 
-  // Submitted guesses
-  for (const guess of guesses) {
-    const row = guess.results.map((r) => ({
-      letter: r.letter.toUpperCase(),
-      status: r.status,
-    }));
-    rows.push(row);
-  }
+  const guesses = externalGuesses ?? storeGuesses;
+  const currentGuess = externalCurrentGuess ?? storeCurrentGuess;
+  const isActive = externalIsActive ?? storeStatus === "IN_PROGRESS";
 
-  // Current in-progress row (only if game is still going)
-  if (rows.length < MAX_GUESSES && status === "IN_PROGRESS") {
-    const currentRow: { letter: string; status: TileStatus }[] = [];
-    for (let i = 0; i < WORD_LENGTH; i++) {
-      if (i < currentGuess.length) {
-        currentRow.push({
-          letter: currentGuess[i].toUpperCase(),
-          status: "ACTIVE",
-        });
-      } else {
-        currentRow.push({ letter: "", status: "EMPTY" });
-      }
-    }
-    rows.push(currentRow);
-  }
-
-  // Fill remaining empty rows
-  while (rows.length < MAX_GUESSES) {
-    const emptyRow: { letter: string; status: TileStatus }[] = Array.from(
-      { length: WORD_LENGTH },
-      () => ({
-        letter: "",
-        status: "EMPTY" as TileStatus,
-      }),
-    );
-    rows.push(emptyRow);
-  }
+  const rows = useBoardRows(guesses, currentGuess, isActive);
 
   return (
     <div className="grid grid-rows-6 max-w-sm mx-auto h-105 w-full gap-1.5">
