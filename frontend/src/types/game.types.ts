@@ -15,5 +15,5 @@ export interface GameState {
   guesses: Guess[];
   status: GameStatus;
   guessesRemaining: number;
-  answer?: string; // only present when game ends
+  answer?: string;
 }

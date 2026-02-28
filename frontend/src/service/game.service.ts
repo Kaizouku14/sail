@@ -1,27 +1,21 @@
 import api from "./api";
-import type { GameState } from "@/types/game.types";
-
-interface GuessResponse {
-  results: { letter: string; status: string }[];
-  status: string;
-  guessesRemaining: number;
-  answer?: string;
-}
-
-interface HintResponse {
-  hint: string;
-  hintsRemaining: number;
-}
+import type {
+  BackendGameState,
+  BackendGuessResponse,
+  BackendHintResponse,
+} from "@/types/game.dto";
 
 export const gameService = {
-  async submitGuess(word: string): Promise<GuessResponse> {
-    const { data } = await api.post<GuessResponse>("/game/guess", { word });
+  async submitGuess(word: string): Promise<BackendGuessResponse> {
+    const { data } = await api.post<BackendGuessResponse>("/game/guess", {
+      word,
+    });
     return data;
   },
 
-  async getGameState(): Promise<GameState | null> {
+  async getGameState(): Promise<BackendGameState | null> {
     try {
-      const { data } = await api.get<GameState>("/game/state");
+      const { data } = await api.get<BackendGameState>("/game/state");
       return data;
     } catch {
       return null;
@@ -35,8 +29,8 @@ export const gameService = {
     return data.valid;
   },
 
-  async requestHint(): Promise<HintResponse> {
-    const { data } = await api.get<HintResponse>("/game/hint");
+  async requestHint(): Promise<BackendHintResponse> {
+    const { data } = await api.get<BackendHintResponse>("/game/hint");
     return data;
   },
 };

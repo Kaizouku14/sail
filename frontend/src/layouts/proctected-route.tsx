@@ -3,9 +3,9 @@ import { useAuthStore } from "@/store";
 import { PageRoutes } from "@/utils/constants";
 
 const ProtectedRoute = () => {
-  const { isAuthenticated } = useAuthStore();
+  const canAccessGame = useAuthStore((state) => state.canAccessGame);
 
-  if (!isAuthenticated) {
+  if (!canAccessGame()) {
     return <Navigate to={PageRoutes.LOGIN} replace />;
   }
 
