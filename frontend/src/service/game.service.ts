@@ -33,4 +33,8 @@ export const gameService = {
     const { data } = await api.get<BackendHintResponse>("/game/hint");
     return data;
   },
+
+  async resetGame(): Promise<void> {
+    await api.post("/game/reset");
+  },
 };

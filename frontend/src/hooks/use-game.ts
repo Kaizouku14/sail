@@ -66,6 +66,11 @@ export function useGame() {
         setGameStatus(state.status as "WON" | "LOST", state.answer);
       }
 
+      // Restore hint count from the server so it survives refresh / navigation
+      if (state.hintsRemaining !== undefined) {
+        useGameStore.setState({ hintsRemaining: state.hintsRemaining });
+      }
+
       setLoading(false);
     } catch {
       setLoading(false);
@@ -76,6 +81,7 @@ export function useGame() {
   const submitGuess = useCallback(async () => {
     const current = useGameStore.getState().currentGuess;
     const gameStatus = useGameStore.getState().status;
+    const existingGuesses = useGameStore.getState().guesses;
 
     if (gameStatus !== GAME_STATUS.IN_PROGRESS) return;
 
@@ -84,6 +90,19 @@ export function useGame() {
       sileo.error({
         title: "Not enough letters",
         description: `Word must be ${WORD_LENGTH} letters`,
+      });
+      return;
+    }
+
+    // Reject duplicate guesses on the client side
+    const alreadyGuessed = existingGuesses.some(
+      (g) => g.word.toLowerCase() === current.toLowerCase(),
+    );
+    if (alreadyGuessed) {
+      setError("Already guessed this word");
+      sileo.error({
+        title: "Duplicate guess",
+        description: "You already tried this word",
       });
       return;
     }
@@ -98,6 +117,7 @@ export function useGame() {
       const guess = guessResponseToGuess(current, result.results);
 
       setGuessResult(guess);
+      setLoading(false);
 
       if (result.status === GAME_STATUS.WON) {
         setGameStatus("WON");
@@ -132,6 +152,7 @@ export function useGame() {
           description: message,
         });
       }
+      setLoading(false);
     }
   }, [setGuessResult, setGameStatus, setLoading, setError]);
 
@@ -153,6 +174,7 @@ export function useGame() {
         title: "Hint",
         description: result.hint,
       });
+      setLoading(false);
     } catch (err: unknown) {
       const axiosError = err as {
         response?: { data?: { message?: string }; status?: number };
@@ -221,6 +243,19 @@ export function useGame() {
     [submitGuess, removeLetter, addLetter],
   );
 
+  const handleResetGame = useCallback(async () => {
+    try {
+      setLoading(true);
+      await gameService.resetGame();
+      resetGame();
+      setLoading(false);
+    } catch {
+      // Even if the backend call fails, reset locally so the UI isn't stuck
+      resetGame();
+      setLoading(false);
+    }
+  }, [resetGame, setLoading]);
+
   return {
     // State
     guesses,
@@ -238,7 +273,7 @@ export function useGame() {
     handleKeyPress,
     submitGuess,
     requestHint,
-    resetGame,
+    resetGame: handleResetGame,
     loadGameState,
   };
 }

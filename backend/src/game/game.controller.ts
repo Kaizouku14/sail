@@ -73,6 +73,19 @@ export class GameController {
     return res.send(result);
   }
 
+  @Post('reset')
+  async reset(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
+    const sessionId = req.cookies['sessionId'];
+
+    if (!sessionId) {
+      return res.send({ message: 'No active game to reset' });
+    }
+
+    await this.gameService.resetGame(sessionId);
+
+    return res.send({ message: 'Game reset successfully' });
+  }
+
   @Get('state')
   @UseGuards(OptionalAuthGuard)
   async state(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
@@ -88,12 +101,18 @@ export class GameController {
       return res.status(404).send({ message: 'No active game found' });
     }
 
+    // Read how many hints have been used for this session
+    const hintKey = `hints:${sessionId}`;
+    const hintCount = await this.redis.get(hintKey);
+    const hintsUsed = hintCount ? parseInt(hintCount) : 0;
+
     return res.send({
       guesses: state.guesses,
       status: state.status,
       guessesRemaining: state.maxGuesses - state.guesses.length,
       answer:
         state.status === GAME_STATUS.IN_PROGRESS ? undefined : state.answer,
+      hintsRemaining: 3 - hintsUsed,
     });
   }
 

@@ -79,7 +79,27 @@ export class GameService {
   async getGameState(sessionId: string): Promise<GameState | null> {
     const key = this.getRedisKey(sessionId);
     const existing = await this.redis.get(key);
-    return existing ? (JSON.parse(existing) as GameState) : null;
+    if (!existing) return null;
+
+    const state = JSON.parse(existing) as GameState;
+
+    // Auto-expire yesterday's games — if the stored date doesn't match
+    // today, the game is stale and should not be returned.
+    if (state.date !== this.getTodayUTC()) {
+      await this.redis.del(key);
+      return null;
+    }
+
+    return state;
+  }
+
+  async resetGame(sessionId: string): Promise<void> {
+    const key = this.getRedisKey(sessionId);
+    await this.redis.del(key);
+
+    // Also clear hints for this session
+    const hintKey = `hints:${sessionId}`;
+    await this.redis.del(hintKey);
   }
 
   getDailyWord(): string {
@@ -135,6 +155,18 @@ export class GameService {
     const isValid = this.word.isValid(guess);
     if (!isValid) {
       throw new HttpException('Invalid word', HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    // Reject duplicate guesses
+    const normalizedGuess = guess.toLowerCase();
+    const alreadyGuessed = state.guesses.some(
+      (g) => g.word.toLowerCase() === normalizedGuess,
+    );
+    if (alreadyGuessed) {
+      throw new HttpException(
+        'Already guessed this word',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const results = this.evaluateWord(guess, state.answer);

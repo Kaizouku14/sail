@@ -10,6 +10,7 @@ export interface BackendGameState {
   status: GameStatus;
   guessesRemaining: number;
   answer?: string;
+  hintsRemaining?: number;
 }
 
 export interface BackendGuessResponse {
