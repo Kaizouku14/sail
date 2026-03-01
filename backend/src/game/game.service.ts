@@ -53,9 +53,10 @@ export class GameService {
   private async createNewGameState(
     sessionId: string,
     userId: string | null,
+    useRandomWord = false,
   ): Promise<GameState> {
     const state: GameState = {
-      answer: this.getDailyWord(),
+      answer: useRandomWord ? this.getRandomWord() : this.getDailyWord(),
       guesses: [],
       status: GAME_STATUS.IN_PROGRESS as GameStatusType,
       date: this.getTodayUTC(),
@@ -93,13 +94,17 @@ export class GameService {
     return state;
   }
 
-  async resetGame(sessionId: string): Promise<void> {
+  async resetGame(sessionId: string, userId: string | null): Promise<void> {
     const key = this.getRedisKey(sessionId);
     await this.redis.del(key);
 
     // Also clear hints for this session
     const hintKey = `hints:${sessionId}`;
     await this.redis.del(hintKey);
+
+    // Immediately create a new game with a random word so the player
+    // doesn't get the same daily word again.
+    await this.createNewGameState(sessionId, userId, true);
   }
 
   getDailyWord(): string {

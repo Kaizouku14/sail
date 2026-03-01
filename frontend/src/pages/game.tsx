@@ -23,7 +23,6 @@ const Game = () => {
 
   return (
     <div className="flex flex-col items-center gap-6 w-full h-full">
-      {/* Game over banner */}
       {isGameOver && (
         <div className="w-full max-w-sm mx-auto">
           <div
@@ -35,7 +34,7 @@ const Game = () => {
           >
             {status === GAME_STATUS.WON ? (
               <>
-                <p className="text-lg font-heading">🎉 You won!</p>
+                <p className="text-lg font-heading">You won!</p>
                 <p className="text-sm opacity-80">
                   Solved in {guesses.length}{" "}
                   {guesses.length === 1 ? "guess" : "guesses"}
@@ -43,7 +42,7 @@ const Game = () => {
               </>
             ) : (
               <>
-                <p className="text-lg font-heading">😔 Game over</p>
+                <p className="text-lg font-heading">Game over</p>
                 <p className="text-sm opacity-80">
                   The word was{" "}
                   <span className="font-bold uppercase">{answer}</span>

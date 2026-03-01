@@ -74,14 +74,19 @@ export class GameController {
   }
 
   @Post('reset')
-  async reset(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
+  @UseGuards(OptionalAuthGuard)
+  async reset(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Req() req: FastifyRequest,
+    @Res() res: FastifyReply,
+  ) {
     const sessionId = req.cookies['sessionId'];
 
     if (!sessionId) {
       return res.send({ message: 'No active game to reset' });
     }
 
-    await this.gameService.resetGame(sessionId);
+    await this.gameService.resetGame(sessionId, user?.id ?? null);
 
     return res.send({ message: 'Game reset successfully' });
   }
