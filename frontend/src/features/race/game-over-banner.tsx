@@ -7,6 +7,7 @@ interface GameOverBannerProps {
   myGuessCount: number;
   opponentName: string | null;
   opponentStatus: string | null;
+  opponentGuessCount: number;
   timeExpired: boolean;
   rematchFrom: string | null;
   onRequestRematch: () => void;
@@ -19,21 +20,54 @@ const GameOverBanner: React.FC<GameOverBannerProps> = ({
   myGuessCount,
   opponentName,
   opponentStatus,
+  opponentGuessCount,
   timeExpired,
   rematchFrom,
   onRequestRematch,
   onAcceptRematch,
 }) => {
   const isWinner = myStatus === "WON";
+  const opponent = opponentName ?? "Opponent";
 
+  // Did the opponent exhaust all their guesses?
+  const opponentExhausted =
+    opponentStatus === "LOST" && opponentGuessCount >= 6;
+  // Did I exhaust all my guesses?
+  const iExhausted = myStatus === "LOST" && myGuessCount >= 6;
+  // Did the opponent actually solve it?
+  const opponentSolvedIt = opponentStatus === "WON" && !opponentExhausted;
+
+  let title = "";
   let description = "";
+
   if (timeExpired && myStatus !== "WON") {
+    title = "⏰ Time's up!";
     description = "Time ran out!";
+  } else if (isWinner && opponentExhausted) {
+    // I won because the opponent used all 6 guesses
+    title = "🎉 You won!";
+    description = `${opponent} used all 6 guesses — you win!`;
   } else if (isWinner) {
+    // I solved it
+    title = "🎉 You won!";
     description = `You solved it in ${myGuessCount} ${myGuessCount === 1 ? "guess" : "guesses"}!`;
-  } else if (myStatus === "LOST" && opponentStatus === "WON") {
-    description = `${opponentName ?? "Opponent"} solved it first.`;
+  } else if (iExhausted && opponentSolvedIt) {
+    // I lost by exhausting guesses, and the opponent actually solved it
+    title = "😔 Game over";
+    description = `You used all 6 guesses. ${opponent} solved it in ${opponentGuessCount} ${opponentGuessCount === 1 ? "guess" : "guesses"}.`;
+  } else if (iExhausted) {
+    // I lost by exhausting guesses
+    title = "😔 Game over";
+    description = `You used all 6 guesses.`;
+  } else if (myStatus === "LOST" && opponentSolvedIt) {
+    // Opponent solved it while I was still playing
+    title = "😔 Game over";
+    description = `${opponent} solved it in ${opponentGuessCount} ${opponentGuessCount === 1 ? "guess" : "guesses"}.`;
+  } else if (myStatus === "LOST") {
+    title = "😔 Game over";
+    description = "Better luck next time!";
   } else {
+    title = "😔 Game over";
     description = "Neither player solved it.";
   }
 
@@ -50,13 +84,7 @@ const GameOverBanner: React.FC<GameOverBannerProps> = ({
       }`}
     >
       <div>
-        <p className="text-lg font-heading">
-          {timeExpired && myStatus !== "WON"
-            ? "⏰ Time's up!"
-            : isWinner
-              ? "🎉 You won!"
-              : "😔 Game over"}
-        </p>
+        <p className="text-lg font-heading">{title}</p>
         <p className="text-sm opacity-80">{description}</p>
       </div>
 

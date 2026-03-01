@@ -105,6 +105,7 @@ export interface PlayerLostPayload {
 export interface GameOverPayload {
   answer: string;
   reason?: "ALL_FINISHED" | "TIME_UP";
+  players?: { id: string; status: PlayerStatus; guesses: number }[];
 }
 
 export interface TimerStartPayload {

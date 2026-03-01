@@ -107,6 +107,7 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
           myGuessCount={guesses.length}
           opponentName={opponent?.username ?? null}
           opponentStatus={opponent?.status ?? null}
+          opponentGuessCount={opponent?.guesses ?? 0}
           timeExpired={timeExpired}
           rematchFrom={rematchFrom}
           onRequestRematch={onRequestRematch}

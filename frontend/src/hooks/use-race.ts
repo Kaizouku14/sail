@@ -223,11 +223,15 @@ export function useRace() {
       useRaceStore.getState().updatePlayer(data.playerId, { status: "LOST" });
 
       if (data.playerId === currentUser?.id) {
-        useRaceStore.getState().setAnswer(data.answer);
-        sileo.error({
-          title: "Game over",
-          description: `The word was ${data.answer.toUpperCase()}`,
-        });
+        // Only show the toast if GUESS_RESULT hasn't already revealed the answer
+        const { answer } = useRaceStore.getState();
+        if (!answer) {
+          useRaceStore.getState().setAnswer(data.answer);
+          sileo.error({
+            title: "Game over",
+            description: `The word was ${data.answer.toUpperCase()}`,
+          });
+        }
       } else {
         const loser = useRaceStore
           .getState()
@@ -243,6 +247,18 @@ export function useRace() {
       useRaceStore.getState().setAnswer(data.answer);
       useRaceStore.getState().setRoomStatus("FINISHED");
       useRaceStore.getState().expireTimer();
+
+      // Apply final player statuses from the server so every client's
+      // player list reflects the definitive WON / LOST state.
+      if (data.players) {
+        for (const p of data.players) {
+          useRaceStore.getState().updatePlayer(p.id, {
+            status: p.status,
+            guesses: p.guesses,
+          });
+        }
+      }
+
       // Game is done — clear persisted room so refresh doesn't try to rejoin
       persistRoomId(null);
     });

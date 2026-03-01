@@ -147,6 +147,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await this.publishEvent(roomId, 'GAME_OVER', {
         answer: room.word,
         reason: 'TIME_UP',
+        players: room.players.map((p) => ({
+          id: p.id,
+          status: p.status,
+          guesses: p.guesses,
+        })),
       });
     } catch (error: unknown) {
       this.logger.error(
@@ -436,14 +441,29 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         player.status = PLAYER_STATUS.LOST as PlayerStatusType;
       }
 
-      const allFinished = room.players.every(
-        (p) => p.status !== PLAYER_STATUS.PLAYING,
-      );
-      if (allFinished) {
-        room.status = ROOM_STATUS.FINISHED as RoomStatusType;
-      }
+      // In a race, when any player finishes (WON or LOST), end the
+      // entire match immediately.
+      // • Player wins  → opponent loses
+      // • Player loses → opponent wins (by default)
+      const playerJustFinished =
+        player.status === PLAYER_STATUS.WON ||
+        player.status === PLAYER_STATUS.LOST;
 
-      if (allFinished) {
+      if (playerJustFinished) {
+        const opponentStatus =
+          player.status === PLAYER_STATUS.WON
+            ? (PLAYER_STATUS.LOST as PlayerStatusType)
+            : (PLAYER_STATUS.WON as PlayerStatusType);
+
+        for (const p of room.players) {
+          if (
+            p.id !== player.id &&
+            p.status === (PLAYER_STATUS.PLAYING as PlayerStatusType)
+          ) {
+            p.status = opponentStatus;
+          }
+        }
+        room.status = ROOM_STATUS.FINISHED as RoomStatusType;
         this.clearRoomTimer(roomId);
         await this.room.finalizeRoom(roomId, room);
       } else {
@@ -460,7 +480,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         word: normalizedWord,
         results,
         status: player.status,
-        answer: player.status !== PLAYER_STATUS.PLAYING ? room.word : undefined,
+        answer: playerJustFinished ? room.word : undefined,
       });
 
       await this.publishEvent(roomId, 'OPPONENT_GUESS', {
@@ -475,17 +495,40 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           playerId: user.id,
           guessCount: player.guesses,
         });
+        // The opponent loses because we solved it first
+        for (const p of room.players) {
+          if (p.id !== user.id && p.status === PLAYER_STATUS.LOST) {
+            await this.publishEvent(roomId, 'PLAYER_LOST', {
+              playerId: p.id,
+              answer: room.word,
+            });
+          }
+        }
       } else if (player.status === PLAYER_STATUS.LOST) {
         await this.publishEvent(roomId, 'PLAYER_LOST', {
           playerId: user.id,
           answer: room.word,
         });
+        // The opponent wins by default because we exhausted all guesses
+        for (const p of room.players) {
+          if (p.id !== user.id && p.status === PLAYER_STATUS.WON) {
+            await this.publishEvent(roomId, 'PLAYER_WON', {
+              playerId: p.id,
+              guessCount: p.guesses,
+            });
+          }
+        }
       }
 
-      if (allFinished) {
+      if (playerJustFinished) {
         await this.publishEvent(roomId, 'GAME_OVER', {
           answer: room.word,
           reason: 'ALL_FINISHED',
+          players: room.players.map((p) => ({
+            id: p.id,
+            status: p.status,
+            guesses: p.guesses,
+          })),
         });
       }
     } catch (error: unknown) {
