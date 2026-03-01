@@ -86,7 +86,7 @@ const Header = () => {
               <Ship className="size-4 sm:size-5 text-main-foreground" />
             </div>
             <span className="text-xl sm:text-2xl font-heading text-foreground">
-              Wordle
+              Sail
             </span>
           </Button>
 

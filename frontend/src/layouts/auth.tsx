@@ -40,7 +40,7 @@ const AuthLayout = () => {
           <div className="rounded-base border-2 border-border bg-background p-2 shadow-shadow">
             <Ship className="size-6 text-foreground" />
           </div>
-          <span className="text-xl font-heading">Wordle</span>
+          <span className="text-xl font-heading">Sail</span>
         </div>
 
         <div className="flex flex-col gap-8">
@@ -81,7 +81,7 @@ const AuthLayout = () => {
         </div>
 
         <p className="text-xs opacity-60">
-          &copy; {new Date().getFullYear()} Wordle. Built for fun and learning.
+          &copy; {new Date().getFullYear()} Sail. Built for fun and learning.
         </p>
       </div>
 
@@ -90,7 +90,7 @@ const AuthLayout = () => {
           <div className="rounded-base border-2 border-border bg-main p-2 shadow-shadow">
             <Ship className="size-5 text-main-foreground" />
           </div>
-          <span className="text-lg font-heading">Wordle</span>
+          <span className="text-lg font-heading">Sail</span>
         </div>
 
         <div className="flex-1 flex items-center justify-center px-6 pb-10 lg:pb-0">

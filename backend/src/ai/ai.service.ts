@@ -27,7 +27,7 @@ export class AIService {
         messages: [
           {
             role: 'system',
-            content: `You are a helpful Wordle game assistant.
+            content: `You are a helpful Sail game assistant.
               Your job is to give semantic hints to help players
               guess the target word. You must NEVER reveal the
               word directly or use it in your hint.`,
@@ -95,12 +95,12 @@ export class AIService {
         messages: [
           {
             role: 'system',
-            content: `You are a Wordle difficulty scorer.
+            content: `You are a Sail difficulty scorer.
               Respond with ONLY one word: easy, medium, or hard.`,
           },
           {
             role: 'user',
-            content: `Rate the difficulty of this Wordle word: "${word}".
+            content: `Rate the difficulty of this word: "${word}".
               Consider letter frequency, commonality, and tricky patterns.
               Respond with ONLY: easy, medium, or hard.`,
           },

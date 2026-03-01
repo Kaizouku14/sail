@@ -1,6 +1,6 @@
-# Wordle — Frontend
+# Sail — Frontend
 
-React frontend for the Wordle multiplayer word game.
+React frontend for the Sail multiplayer word game.
 
 ## Tech Stack
 

@@ -1,6 +1,6 @@
-# Wordle Backend
+# Sail Backend
 
-The backend API and real-time WebSocket server for a multiplayer Wordle game. Built with **NestJS**, **Fastify**, **PostgreSQL**, **Redis**, and **Socket.IO**, with AI-powered hints via **Groq**.
+The backend API and real-time WebSocket server for a multiplayer Sail word game. Built with **NestJS**, **Fastify**, **PostgreSQL**, **Redis**, and **Socket.IO**, with AI-powered hints via **Groq**.
 
 ## Table of Contents
 
@@ -237,7 +237,7 @@ const socket = io("http://localhost:3000/game", {
 | ------------ | -------------------------------------------------------------------------------------------------- |
 | `AppModule`  | Root module — imports all feature modules, configures global env validation with Joi                |
 | `AuthModule` | User registration, login (bcrypt + JWT), and player statistics                                     |
-| `GameModule` | Core Wordle logic — daily word selection, two-pass guess evaluation, session management, WebSocket gateway |
+| `GameModule` | Core game logic — daily word selection, two-pass guess evaluation, session management, WebSocket gateway |
 | `WordModule` | Loads word dictionaries from static files, provides word validation and answer-word retrieval       |
 | `RoomModule` | Multiplayer room lifecycle — create, join, leave, finalize — with Redis state and DB persistence    |
 | `AIModule`   | Groq LLM integration for semantic hint generation and word difficulty scoring                       |

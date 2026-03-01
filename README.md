@@ -1,4 +1,4 @@
-# Wordle
+# Sail
 
 A full-stack multiplayer word game with AI-powered hints, real-time race mode, and stat tracking.
 
@@ -48,7 +48,7 @@ pnpm run dev
 ## Project Structure
 
 ```
-wordle/
+sail/
 ├── backend/
 │   └── src/
 │       ├── ai/          # LLM hint generation
