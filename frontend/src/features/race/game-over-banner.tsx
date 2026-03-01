@@ -29,12 +29,9 @@ const GameOverBanner: React.FC<GameOverBannerProps> = ({
   const isWinner = myStatus === "WON";
   const opponent = opponentName ?? "Opponent";
 
-  // Did the opponent exhaust all their guesses?
   const opponentExhausted =
     opponentStatus === "LOST" && opponentGuessCount >= 6;
-  // Did I exhaust all my guesses?
   const iExhausted = myStatus === "LOST" && myGuessCount >= 6;
-  // Did the opponent actually solve it?
   const opponentSolvedIt = opponentStatus === "WON" && !opponentExhausted;
 
   let title = "";
@@ -44,23 +41,18 @@ const GameOverBanner: React.FC<GameOverBannerProps> = ({
     title = "Time's up!";
     description = "Time ran out!";
   } else if (isWinner && opponentExhausted) {
-    // I won because the opponent used all 6 guesses
     title = "You won!";
     description = `${opponent} used all 6 guesses — you win!`;
   } else if (isWinner) {
-    // I solved it
     title = "You won!";
     description = `You solved it in ${myGuessCount} ${myGuessCount === 1 ? "guess" : "guesses"}!`;
   } else if (iExhausted && opponentSolvedIt) {
-    // I lost by exhausting guesses, and the opponent actually solved it
     title = "Game over";
     description = `You used all 6 guesses. ${opponent} solved it in ${opponentGuessCount} ${opponentGuessCount === 1 ? "guess" : "guesses"}.`;
   } else if (iExhausted) {
-    // I lost by exhausting guesses
     title = "Game over";
     description = `You used all 6 guesses.`;
   } else if (myStatus === "LOST" && opponentSolvedIt) {
-    // Opponent solved it while I was still playing
     title = "Game over";
     description = `${opponent} solved it in ${opponentGuessCount} ${opponentGuessCount === 1 ? "guess" : "guesses"}.`;
   } else if (myStatus === "LOST") {
@@ -77,15 +69,15 @@ const GameOverBanner: React.FC<GameOverBannerProps> = ({
 
   return (
     <div
-      className={`w-full rounded-base border-2 shadow-shadow p-4 text-center flex flex-col gap-3 ${
+      className={`w-full rounded-base border-2 shadow-shadow p-3 sm:p-4 text-center flex flex-col gap-2 sm:gap-3 ${
         isWinner
           ? "bg-chart-3/20 border-chart-3"
           : "bg-red-500/20 border-red-500"
       }`}
     >
       <div>
-        <p className="text-lg font-heading">{title}</p>
-        <p className="text-sm opacity-80">{description}</p>
+        <p className="text-base sm:text-lg font-heading">{title}</p>
+        <p className="text-xs sm:text-sm opacity-80">{description}</p>
       </div>
 
       <div className="flex items-center justify-center gap-3">

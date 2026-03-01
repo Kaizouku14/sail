@@ -44,10 +44,10 @@ const StatsPage = () => {
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-2xl mx-auto pb-10">
+    <div className="flex flex-col gap-4 sm:gap-6 w-full max-w-2xl mx-auto px-2 sm:px-0 pb-6 sm:pb-10">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-heading">Statistics</h1>
-        <p className="text-sm opacity-60">
+        <h1 className="text-xl sm:text-2xl font-heading">Statistics</h1>
+        <p className="text-xs sm:text-sm opacity-60">
           Your solo and multiplayer performance
         </p>
       </div>

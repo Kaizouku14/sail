@@ -1,15 +1,16 @@
 import { Outlet } from "react-router-dom";
 import Header from "@/components/layout/header";
-// import Footer from "@/components/layout/footer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const GameLayout = () => {
   return (
-    <div className="h-screen flex flex-col max-w-4xl my-4 mx-auto gap-y-4">
+    <div className="h-dvh flex flex-col max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 gap-y-2 sm:gap-y-4 overflow-hidden">
       <Header />
-      <div className="h-full">
-        <Outlet />
-      </div>
-      {/*<Footer />*/}
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="pr-3.5">
+          <Outlet />
+        </div>
+      </ScrollArea>
     </div>
   );
 };

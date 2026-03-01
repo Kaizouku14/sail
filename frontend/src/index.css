@@ -2,6 +2,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Prevent iOS zoom on input focus (font-size < 16px triggers zoom) */
+@supports (-webkit-touch-callout: none) {
+    input,
+    textarea,
+    select {
+        font-size: 16px !important;
+    }
+}
+
 :root {
     --background: oklch(0.241 0.0156 274.1);
     --secondary-background: oklch(23.93% 0 0);
@@ -51,8 +60,33 @@
 }
 
 @layer base {
+    *,
+    *::before,
+    *::after {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+        /* Use dvh so mobile address-bar changes are accounted for */
+        height: 100dvh;
+        overflow: hidden;
+    }
+
     body {
         @apply text-foreground font-base bg-background font-family;
+        height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
+        /* Safe-area insets for notched devices */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+
+    #root {
+        height: 100%;
+        overflow: hidden;
     }
 
     h1,
@@ -62,6 +96,12 @@
     h5,
     h6 {
         @apply font-heading;
+    }
+
+    /* Prevent pull-to-refresh and bounce on mobile */
+    body,
+    #root {
+        touch-action: pan-x pan-y;
     }
 }
 

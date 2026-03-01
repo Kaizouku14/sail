@@ -19,7 +19,6 @@ interface RaceRoomProps {
   onAcceptRematch: () => void;
 }
 
-/** In-game race view — reuses shared Board and KeyBoard components. */
 const RaceRoom: React.FC<RaceRoomProps> = ({
   onLeave,
   onKeyPress,
@@ -54,33 +53,32 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
 
   const inviteLink = `${window.location.origin}/race/${roomId}`;
 
-  // Board is still interactive when the game is in progress, the player hasn't finished, and time hasn't expired
   const isBoardActive = isPlaying && !myTurnDone && !timeExpired;
 
   return (
-    <div className="flex flex-col gap-4 w-full h-full">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-heading">Race</h2>
+    <div className="flex flex-col gap-2 sm:gap-4 w-full h-full">
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <h2 className="text-base sm:text-lg font-heading">Race</h2>
           {isWaiting && (
-            <span className="inline-flex items-center gap-1.5 rounded-base border border-chart-2/40 bg-chart-2/10 px-2 py-0.5 text-xs font-heading text-chart-2">
-              <Clock className="size-3" />
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 rounded-base border border-chart-2/40 bg-chart-2/10 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-heading text-chart-2">
+              <Clock className="size-2.5 sm:size-3" />
               Waiting
             </span>
           )}
           {isPlaying && !timeExpired && (
-            <span className="inline-flex items-center rounded-base border border-chart-5/40 bg-chart-5/10 px-2 py-0.5 text-xs font-heading text-chart-5">
+            <span className="inline-flex items-center rounded-base border border-chart-5/40 bg-chart-5/10 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-heading text-chart-5">
               Live
             </span>
           )}
           {(isFinished || timeExpired) && (
-            <span className="inline-flex items-center rounded-base border border-foreground/20 bg-foreground/5 px-2 py-0.5 text-xs font-heading opacity-60">
+            <span className="inline-flex items-center rounded-base border border-foreground/20 bg-foreground/5 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-heading opacity-60">
               Finished
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {(isPlaying || isFinished) && (
             <RaceTimer
               remainingSeconds={remainingSeconds}
@@ -92,49 +90,57 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
             variant="neutral"
             size="sm"
             onClick={onLeave}
-            className="flex items-center gap-2"
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
           >
-            <LogOut className="size-4" />
-            Leave
+            <LogOut className="size-3.5 sm:size-4" />
+            <span className="hidden xs:inline">Leave</span>
           </Button>
         </div>
       </div>
 
       {isFinished && myPlayer && (
-        <GameOverBanner
-          myStatus={myPlayer.status}
-          answer={answer}
-          myGuessCount={guesses.length}
-          opponentName={opponent?.username ?? null}
-          opponentStatus={opponent?.status ?? null}
-          opponentGuessCount={opponent?.guesses ?? 0}
-          timeExpired={timeExpired}
-          rematchFrom={rematchFrom}
-          onRequestRematch={onRequestRematch}
-          onAcceptRematch={onAcceptRematch}
-        />
+        <div className="shrink-0">
+          <GameOverBanner
+            myStatus={myPlayer.status}
+            answer={answer}
+            myGuessCount={guesses.length}
+            opponentName={opponent?.username ?? null}
+            opponentStatus={opponent?.status ?? null}
+            opponentGuessCount={opponent?.guesses ?? 0}
+            timeExpired={timeExpired}
+            rematchFrom={rematchFrom}
+            onRequestRematch={onRequestRematch}
+            onAcceptRematch={onAcceptRematch}
+          />
+        </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
-        <div className="flex flex-col items-center gap-4 flex-1 min-w-0 relative h-screen">
+      {/* Main content area */}
+      <div className="flex flex-col lg:flex-row gap-3 sm:gap-6 flex-1 min-h-0">
+        {/* Left: Board + Keyboard */}
+        <div className="flex flex-col items-center gap-2 sm:gap-4 flex-1 min-w-0 min-h-0 relative">
           {isWaiting && (
             <WaitingOverlay roomId={roomId} inviteLink={inviteLink} />
           )}
 
-          <Board
-            guesses={guesses}
-            currentGuess={currentGuess}
-            isActive={isBoardActive}
-          />
+          <div className="flex-1 w-full min-h-0 px-2 sm:px-0">
+            <Board
+              guesses={guesses}
+              currentGuess={currentGuess}
+              isActive={isBoardActive}
+            />
+          </div>
 
-          <KeyBoard
-            onKeyPress={onKeyPress}
-            keyboardColors={keyboardColors}
-            disabled={isWaiting || isFinished || myTurnDone || timeExpired}
-          />
+          <div className="w-full shrink-0 pb-1 sm:pb-0">
+            <KeyBoard
+              onKeyPress={onKeyPress}
+              keyboardColors={keyboardColors}
+              disabled={isWaiting || isFinished || myTurnDone || timeExpired}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-4 lg:w-56 shrink-0">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:w-56 shrink-0">
           <PlayerList
             players={room.players}
             currentUserId={myId}

@@ -38,9 +38,9 @@ const KeyBoard: React.FC<KeyBoardProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-1.5 w-full max-w-lg mx-auto">
+    <div className="flex flex-col gap-1 sm:gap-1.5 w-full max-w-lg mx-auto">
       {KEYBOARD_ROWS.map((row, rowIndex) => (
-        <div key={rowIndex} className="flex justify-center gap-1.5">
+        <div key={rowIndex} className="flex justify-center gap-1 sm:gap-1.5">
           {row.map((key) => {
             const isWide = key === "ENTER" || key === "DELETE";
 
@@ -50,13 +50,20 @@ const KeyBoard: React.FC<KeyBoardProps> = ({
                 disabled={disabled}
                 onClick={() => onKeyPress(key)}
                 className={cn(
-                  "h-14 font-bold text-sm rounded-base border-2 border-border shadow-shadow transition-colors duration-150",
-                  isWide ? "px-3 min-w-16.25 text-xs" : "w-10 px-0",
+                  "font-bold rounded-base border-2 border-border shadow-shadow transition-colors duration-150",
+                  "h-11 text-xs sm:h-14 sm:text-sm",
+                  isWide
+                    ? "px-1.5 min-w-11 sm:px-3 sm:min-w-16.25 text-[10px] sm:text-xs"
+                    : "w-7 px-0 sm:w-10",
                   getKeyStyle(key),
                   disabled && "opacity-50 cursor-not-allowed",
                 )}
               >
-                {key === "DELETE" ? <Delete className="size-5" /> : key}
+                {key === "DELETE" ? (
+                  <Delete className="size-4 sm:size-5" />
+                ) : (
+                  key
+                )}
               </Button>
             );
           })}

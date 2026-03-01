@@ -75,7 +75,7 @@ const OpponentBoard: React.FC<OpponentBoardProps> = ({
                   <div
                     key={colIndex}
                     className={cn(
-                      "h-7 w-7 rounded-sm border-2 transition-colors duration-300",
+                      "h-5 w-5 sm:h-7 sm:w-7 rounded-sm border-2 transition-colors duration-300",
                       hasRow && color
                         ? cn(
                             statusStyles[color as keyof typeof statusStyles],

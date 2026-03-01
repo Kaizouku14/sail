@@ -67,7 +67,7 @@ const RaceTimer: React.FC<RaceTimerProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-base border-2 px-3 py-1.5 text-sm font-heading transition-colors ${
+      className={`flex items-center gap-1.5 sm:gap-2 rounded-base border-2 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-heading transition-colors ${
         isExpired
           ? "border-red-500/60 bg-red-500/10 text-red-400"
           : isUrgent
@@ -76,9 +76,9 @@ const RaceTimer: React.FC<RaceTimerProps> = ({
       }`}
     >
       {isExpired ? (
-        <AlertTriangle className="size-3.5" />
+        <AlertTriangle className="size-3 sm:size-3.5" />
       ) : (
-        <Timer className="size-3.5" />
+        <Timer className="size-3 sm:size-3.5" />
       )}
       <span>{isExpired ? "0:00" : formatTime(displaySeconds)}</span>
     </div>

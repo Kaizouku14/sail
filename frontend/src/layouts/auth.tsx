@@ -34,7 +34,7 @@ const AuthLayout = () => {
   }
 
   return (
-    <div className="h-screen grid grid-cols-1 lg:grid-cols-2">
+    <div className="h-dvh grid grid-cols-1 lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between bg-main border-r-2 border-border p-10 text-main-foreground">
         <div className="flex items-center gap-3">
           <div className="rounded-base border-2 border-border bg-background p-2 shadow-shadow">

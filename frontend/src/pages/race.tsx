@@ -48,13 +48,15 @@ const Race = () => {
   }
 
   return (
-    <RaceRoom
-      onLeave={handleLeave}
-      onKeyPress={handleKeyPress}
-      keyboardColors={keyboardColors}
-      onRequestRematch={requestRematch}
-      onAcceptRematch={acceptRematch}
-    />
+    <div className="h-full">
+      <RaceRoom
+        onLeave={handleLeave}
+        onKeyPress={handleKeyPress}
+        keyboardColors={keyboardColors}
+        onRequestRematch={requestRematch}
+        onAcceptRematch={acceptRematch}
+      />
+    </div>
   );
 };
 

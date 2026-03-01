@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -9,27 +8,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { useRace } from "../../hooks/use-race";
 import { useAuthStore } from "@/store";
 import { useRaceStore } from "@/store";
 import { PageRoutes } from "@/utils/constants";
-import { Loader2, Plus, LogIn, Swords } from "lucide-react";
+import { Plus, LogIn, Swords } from "lucide-react";
 import { sileo } from "sileo";
 
 interface RaceLobbyProps {
   roomIdFromUrl?: string;
 }
 
-/**
- * Extracts a room ID from user input. Handles:
- * - Full invite URL: http://localhost:5173/race/some-uuid → some-uuid
- * - Full invite URL: https://example.com/race/some-uuid → some-uuid
- * - Raw room ID: some-uuid → some-uuid
- */
 function parseRoomId(input: string): string {
   const trimmed = input.trim();
 
-  // Check if the input looks like a URL containing /race/
   const racePathMatch = trimmed.match(/\/race\/([^/?#]+)/);
   if (racePathMatch?.[1]) {
     return racePathMatch[1];
@@ -49,7 +42,6 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
 
   const isConnecting = connectionStatus === "connecting";
 
-  // Listen for socket errors to reset loading states
   const error = useRaceStore((s) => s.error);
 
   useEffect(() => {
@@ -112,18 +104,18 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-8 w-full max-w-md mx-auto py-12">
+    <div className="flex flex-col items-center justify-center gap-6 sm:gap-8 w-full max-w-md mx-auto px-2 sm:px-0 py-8 sm:py-12">
       <div className="flex flex-col items-center gap-2 text-center">
-        <div className="rounded-base border-2 border-border bg-main p-3 shadow-shadow">
-          <Swords className="size-8 text-main-foreground" />
+        <div className="rounded-base border-2 border-border bg-main p-2.5 sm:p-3 shadow-shadow">
+          <Swords className="size-6 sm:size-8 text-main-foreground" />
         </div>
-        <h1 className="text-2xl font-heading mt-2">Race Mode</h1>
-        <p className="text-sm opacity-70 max-w-xs">
+        <h1 className="text-xl sm:text-2xl font-heading mt-2">Race Mode</h1>
+        <p className="text-xs sm:text-sm opacity-70 max-w-xs">
           Challenge a friend to solve the same word. First to guess it wins.
         </p>
       </div>
 
-      <div className="flex flex-col gap-4 w-full">
+      <div className="flex flex-col gap-3 sm:gap-4 w-full">
         <Card className="bg-main-foreground/10">
           <CardHeader>
             <CardTitle className="text-base">Create a room</CardTitle>
@@ -132,23 +124,15 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button
+            <LoadingButton
+              loading={isCreating || isConnecting}
+              loadingText="Creating..."
+              icon={<Plus className="size-4" />}
               onClick={handleCreate}
-              disabled={isCreating || isConnecting}
-              className="w-full flex items-center gap-2"
+              className="w-full"
             >
-              {isCreating || isConnecting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Plus className="size-4" />
-                  Create Room
-                </>
-              )}
-            </Button>
+              Create Room
+            </LoadingButton>
           </CardContent>
         </Card>
 
@@ -175,24 +159,17 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
                 disabled={isJoining || isConnecting}
                 className="font-mono text-sm tracking-wider"
               />
-              <Button
+              <LoadingButton
                 variant="neutral"
+                loading={isJoining || isConnecting}
+                loadingText="Joining..."
+                icon={<LogIn className="size-4" />}
                 onClick={handleJoin}
-                disabled={isJoining || isConnecting || !joinCode.trim()}
-                className="w-full flex items-center gap-2"
+                disabled={!joinCode.trim()}
+                className="w-full"
               >
-                {isJoining || isConnecting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Joining...
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="size-4" />
-                    Join Room
-                  </>
-                )}
-              </Button>
+                Join Room
+              </LoadingButton>
             </div>
           </CardContent>
         </Card>

@@ -14,7 +14,8 @@ const Tile: React.FC<TileProps> = ({ letter, status }) => {
   return (
     <div
       className={cn(
-        "flex items-center justify-center border-2 text-2xl font-bold select-none aspect-square",
+        "flex items-center justify-center border-2 font-bold select-none aspect-square",
+        "text-lg sm:text-2xl",
         "transition-transform duration-100",
         statusStyles[status],
         isRevealed && "animate-flip",

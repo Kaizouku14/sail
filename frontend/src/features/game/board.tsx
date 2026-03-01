@@ -25,9 +25,9 @@ const Board: React.FC<BoardProps> = ({
   const rows = useBoardRows(guesses, currentGuess, isActive);
 
   return (
-    <div className="grid grid-rows-6 max-w-sm mx-auto h-105 w-full gap-1.5">
+    <div className="grid grid-rows-6 w-full max-w-sm mx-auto h-full gap-1 sm:gap-1.5">
       {rows.map((row, rowIndex) => (
-        <div key={rowIndex} className="grid grid-cols-5 gap-1.5">
+        <div key={rowIndex} className="grid grid-cols-5 gap-1 sm:gap-1.5">
           {row.map((tile, colIndex) => (
             <Tile key={colIndex} status={tile.status} letter={tile.letter} />
           ))}

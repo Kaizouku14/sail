@@ -1,29 +1,40 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import React from "react";
+import { LoadingButton } from "@/components/ui/loading-button";
+import type { VariantProps } from "class-variance-authority";
+import type { buttonVariants } from "@/components/ui/button";
 
-interface SubmitButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface SubmitButtonProps
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
   isSubmitting?: boolean;
   children: React.ReactNode;
   loadingText?: string;
 }
 
-export const SubmitButton: React.FC<SubmitButtonProps> = ({
+const SubmitButton: React.FC<SubmitButtonProps> = ({
   isSubmitting = false,
   children,
   loadingText,
+  variant,
+  size,
+  className = "w-full",
   ...props
 }) => {
   return (
-    <Button type="submit" disabled={isSubmitting} className="w-full" {...props}>
-      {isSubmitting ? (
-        <span className="flex items-center justify-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          {loadingText || children}
-        </span>
-      ) : (
-        children
-      )}
-    </Button>
+    <LoadingButton
+      type="submit"
+      variant={variant}
+      size={size}
+      loading={isSubmitting}
+      loadingText={
+        loadingText ?? (typeof children === "string" ? children : "Loading...")
+      }
+      className={className}
+      {...props}
+    >
+      {children}
+    </LoadingButton>
   );
 };
+
+export { SubmitButton };
