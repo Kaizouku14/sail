@@ -115,7 +115,7 @@ const RaceRoom: React.FC<RaceRoomProps> = ({
       )}
 
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
-        <div className="flex flex-col items-center gap-4 flex-1 min-w-0 relative">
+        <div className="flex flex-col items-center gap-4 flex-1 min-w-0 relative h-screen">
           {isWaiting && (
             <WaitingOverlay roomId={roomId} inviteLink={inviteLink} />
           )}

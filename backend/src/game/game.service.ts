@@ -96,6 +96,10 @@ export class GameService {
     return words[dayIndex];
   }
 
+  getRandomWord(): string {
+    return this.word.getRandomWord();
+  }
+
   evaluateWord(guess: string, answer: string) {
     const results: LetterResultType[] = Array(5).fill(
       LETTER_RESULT.ABSENT,

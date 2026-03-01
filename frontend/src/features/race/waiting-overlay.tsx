@@ -10,8 +10,8 @@ const WaitingOverlay: React.FC<WaitingOverlayProps> = ({
   roomId,
   inviteLink,
 }) => (
-  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-base">
-    <div className="flex flex-col items-center gap-4 p-6 max-w-xs text-center">
+  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background backdrop-blur-sm rounded-base ">
+    <div className="flex flex-col items-center gap-4 p-6 max-w-xs text-center ">
       <div className="rounded-base border-2 border-border bg-main/10 p-3">
         <Clock className="size-6 text-main" />
       </div>

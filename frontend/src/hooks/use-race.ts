@@ -15,6 +15,7 @@ import type {
   GuessResultPayload,
   OpponentGuessPayload,
   PlayerWonPayload,
+  PlayerLostPayload,
   GameOverPayload,
   TimerStartPayload,
   TimerTickPayload,
@@ -24,10 +25,27 @@ import type {
   WsAckResponse,
 } from "@/types/socket.types";
 
+const ROOM_ID_STORAGE_KEY = "race_active_room_id";
+
+function persistRoomId(roomId: string | null): void {
+  if (roomId) {
+    sessionStorage.setItem(ROOM_ID_STORAGE_KEY, roomId);
+  } else {
+    sessionStorage.removeItem(ROOM_ID_STORAGE_KEY);
+  }
+}
+
+function getPersistedRoomId(): string | null {
+  return sessionStorage.getItem(ROOM_ID_STORAGE_KEY);
+}
+
 export function useRace() {
   const store = useRaceStore();
   const { user } = useAuthStore();
   const listenersAttached = useRef(false);
+  // Guard: when the user explicitly leaves, prevent auto-rejoin logic
+  // from pulling them back into the room they just left.
+  const leavingRef = useRef(false);
 
   const attachListeners = useCallback(() => {
     if (listenersAttached.current) return;
@@ -36,6 +54,46 @@ export function useRace() {
     socketService.on<ConnectedPayload>("CONNECTED", (data) => {
       useRaceStore.getState().setConnectionStatus("connected");
       console.log("[race] authenticated as", data.userId);
+
+      // Auto-rejoin on reconnection: if we already have an active room in
+      // the store or sessionStorage, re-emit rejoinRoom so the server puts
+      // our new socket back into the Socket.IO room.  This handles tab
+      // switches, network hiccups, and any other Socket.IO reconnect.
+      const { roomId, room } = useRaceStore.getState();
+      const persistedId = sessionStorage.getItem(ROOM_ID_STORAGE_KEY);
+      const targetRoomId = roomId || persistedId;
+
+      if (targetRoomId && room && !leavingRef.current) {
+        // We already have local room state — just re-join the server room
+        // so we keep receiving events. Use updateRoomMeta on success so the
+        // timer is NOT reset.
+        console.log(
+          "[race] auto-rejoining room after reconnect:",
+          targetRoomId,
+        );
+        socketService.emit(
+          "rejoinRoom",
+          { roomId: targetRoomId },
+          (response: unknown) => {
+            const ack = response as WsAckResponse<RoomState>;
+            if (ack?.data) {
+              // Only update room metadata (players, status) — preserve timer
+              useRaceStore.getState().updateRoomMeta({
+                status: ack.data.status,
+                players: ack.data.players,
+                startedAt: ack.data.startedAt,
+                finishedAt: ack.data.finishedAt,
+                remainingSeconds: ack.data.remainingSeconds,
+                timeLimit: ack.data.timeLimit,
+              });
+            } else if (ack?.error) {
+              console.warn("[race] auto-rejoin failed:", ack.error);
+              // Room no longer exists — clean up
+              sessionStorage.removeItem(ROOM_ID_STORAGE_KEY);
+            }
+          },
+        );
+      }
     });
 
     socketService.on<WsErrorPayload>("ERROR", (data) => {
@@ -44,14 +102,26 @@ export function useRace() {
     });
 
     socketService.on<PlayerJoinedPayload>("PLAYER_JOINED", (data) => {
-      useRaceStore.getState().addPlayer({
+      const state = useRaceStore.getState();
+
+      // Add the new player to the room (no-op if already present)
+      state.addPlayer({
         id: data.playerId,
         username: data.username,
         guesses: 0,
         status: "PLAYING",
         guessColors: [],
       });
-      useRaceStore.getState().setRoomStatus("IN_PROGRESS");
+
+      // Use updateRoomMeta (NOT setRoom) so we update status / startedAt
+      // without clobbering the timer if it is already running.
+      useRaceStore.getState().updateRoomMeta({
+        status: data.roomStatus,
+        startedAt: data.startedAt,
+        remainingSeconds: data.remainingSeconds,
+        timeLimit: data.timeLimit,
+      });
+
       sileo.success({
         title: "Player joined",
         description: `${data.username} entered the room`,
@@ -95,21 +165,35 @@ export function useRace() {
       };
 
       useRaceStore.getState().pushGuess(guess);
+
+      // Update own player status from authoritative server response
+      if (data.status && data.status !== "PLAYING") {
+        useRaceStore
+          .getState()
+          .updatePlayer(data.playerId, { status: data.status });
+
+        if (data.status === "LOST" && data.answer) {
+          useRaceStore.getState().setAnswer(data.answer);
+          sileo.error({
+            title: "Game over",
+            description: `The word was ${data.answer.toUpperCase()}`,
+          });
+        }
+      }
     });
 
     socketService.on<OpponentGuessPayload>("OPPONENT_GUESS", (data) => {
       const currentUser = useAuthStore.getState().user;
       if (!currentUser || data.playerId === currentUser.id) return;
 
+      const opponent = useRaceStore
+        .getState()
+        .room?.players.find((p) => p.id === data.playerId);
+
       useRaceStore.getState().updatePlayer(data.playerId, {
         guesses: data.guessNumber,
-        guessColors: [
-          ...(useRaceStore
-            .getState()
-            .room?.players.find((p) => p.id === data.playerId)?.guessColors ??
-            []),
-          data.colors,
-        ],
+        guessColors: [...(opponent?.guessColors ?? []), data.colors],
+        status: data.status,
       });
     });
 
@@ -134,10 +218,33 @@ export function useRace() {
       }
     });
 
+    socketService.on<PlayerLostPayload>("PLAYER_LOST", (data) => {
+      const currentUser = useAuthStore.getState().user;
+      useRaceStore.getState().updatePlayer(data.playerId, { status: "LOST" });
+
+      if (data.playerId === currentUser?.id) {
+        useRaceStore.getState().setAnswer(data.answer);
+        sileo.error({
+          title: "Game over",
+          description: `The word was ${data.answer.toUpperCase()}`,
+        });
+      } else {
+        const loser = useRaceStore
+          .getState()
+          .room?.players.find((p) => p.id === data.playerId);
+        sileo.success({
+          title: "Opponent lost",
+          description: `${loser?.username ?? "Opponent"} used all 6 guesses`,
+        });
+      }
+    });
+
     socketService.on<GameOverPayload>("GAME_OVER", (data) => {
       useRaceStore.getState().setAnswer(data.answer);
       useRaceStore.getState().setRoomStatus("FINISHED");
       useRaceStore.getState().expireTimer();
+      // Game is done — clear persisted room so refresh doesn't try to rejoin
+      persistRoomId(null);
     });
 
     // Timer events
@@ -191,6 +298,7 @@ export function useRace() {
       "GUESS_RESULT",
       "OPPONENT_GUESS",
       "PLAYER_WON",
+      "PLAYER_LOST",
       "GAME_OVER",
       "TIMER_START",
       "TIMER_TICK",
@@ -214,93 +322,193 @@ export function useRace() {
     }
   }, [attachListeners]);
 
-  const disconnect = useCallback(() => {
-    detachListeners();
-    socketService.disconnect();
-    useRaceStore.getState().reset();
-  }, [detachListeners]);
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      detachListeners();
-      socketService.disconnect();
-    };
-  }, [detachListeners]);
-
-  const createRoom = useCallback(() => {
-    if (!socketService.isConnected()) {
-      connect();
-      socketService.once("CONNECTED", () => {
-        socketService.emit("createRoom", undefined, (response: unknown) => {
-          const ack = response as WsAckResponse<RoomState>;
-          if (ack?.data) {
-            useRaceStore.getState().setRoom(ack.data);
-          }
-        });
-      });
-      return;
+  /**
+   * Helper: wait for the socket to be connected and the CONNECTED ack
+   * to arrive from the server, with a timeout. Returns a promise that
+   * resolves once the server has confirmed the connection, or rejects
+   * on timeout / error.
+   */
+  const ensureConnected = useCallback((): Promise<void> => {
+    if (
+      socketService.isConnected() &&
+      useRaceStore.getState().connectionStatus === "connected"
+    ) {
+      return Promise.resolve();
     }
 
-    socketService.emit("createRoom", undefined, (response: unknown) => {
-      const ack = response as WsAckResponse<RoomState>;
-      if (ack?.data) {
-        useRaceStore.getState().setRoom(ack.data);
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Connection timed out"));
+      }, 10_000);
+
+      // If not connected at all, kick off the connection
+      if (!socketService.isConnected()) {
+        connect();
+      }
+
+      // Wait for the server CONNECTED ack (already registered in attachListeners)
+      socketService.once("CONNECTED", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      // Also listen for errors during connection
+      socketService.once("ERROR", (data: unknown) => {
+        clearTimeout(timeout);
+        const payload = data as { message?: string };
+        reject(new Error(payload?.message ?? "Socket error during connection"));
+      });
+
+      // Handle socket-level disconnect before we get CONNECTED
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.once("disconnect", (reason: string) => {
+          clearTimeout(timeout);
+          reject(new Error(`Disconnected during connection: ${reason}`));
+        });
+        socket.once("connect_error", (err: Error) => {
+          clearTimeout(timeout);
+          reject(new Error(`Connection error: ${err.message}`));
+        });
       }
     });
   }, [connect]);
 
+  /**
+   * Leave the current room.  Callers (e.g. the Race page) are responsible
+   * for navigating to `/race` via React Router so that `useParams` updates
+   * and the auto-rejoin effect does NOT pull the user back in.
+   */
+  const disconnect = useCallback(() => {
+    // Set the leaving guard FIRST so that any in-flight reconnect /
+    // CONNECTED handler does not re-join the room we're about to leave.
+    leavingRef.current = true;
+    detachListeners();
+    socketService.disconnect();
+    useRaceStore.getState().reset();
+    persistRoomId(null);
+  }, [detachListeners]);
+
+  // NOTE: We intentionally do NOT disconnect the socket on unmount.
+  // React StrictMode double-mounts components (mount → unmount → mount),
+  // and disconnecting here would kill the socket mid-rejoin on the first
+  // cycle, leaving the second mount with a dead connection.  The socket
+  // is cleaned up explicitly when the user clicks "Leave" (disconnect())
+  // or when the page is fully unloaded (beforeunload).
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      detachListeners();
+      socketService.disconnect();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [detachListeners]);
+
+  const createRoom = useCallback(async (): Promise<void> => {
+    try {
+      await ensureConnected();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Connection failed";
+      useRaceStore.getState().setConnectionStatus("error");
+      useRaceStore.getState().setError(msg);
+      sileo.error({ title: "Connection failed", description: msg });
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      socketService.emit("createRoom", undefined, (response: unknown) => {
+        const ack = response as WsAckResponse<RoomState>;
+        if (ack?.data) {
+          useRaceStore.getState().setRoom(ack.data);
+          persistRoomId(ack.data.id);
+          // Update URL so refresh works
+          window.history.replaceState(null, "", `/race/${ack.data.id}`);
+        } else {
+          const msg = ack?.error ?? "Failed to create room";
+          useRaceStore.getState().setError(msg);
+          sileo.error({ title: "Create failed", description: msg });
+        }
+        resolve();
+      });
+    });
+  }, [ensureConnected]);
+
   const joinRoom = useCallback(
-    (roomId: string) => {
-      const doJoin = () => {
+    async (roomId: string): Promise<void> => {
+      try {
+        await ensureConnected();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Connection failed";
+        useRaceStore.getState().setConnectionStatus("error");
+        useRaceStore.getState().setError(msg);
+        sileo.error({ title: "Connection failed", description: msg });
+        return;
+      }
+
+      return new Promise<void>((resolve) => {
         socketService.emit("joinRoom", { roomId }, (response: unknown) => {
           const ack = response as WsAckResponse<RoomState>;
           if (ack?.data) {
             useRaceStore.getState().setRoom(ack.data);
+            persistRoomId(ack.data.id);
+            // Update URL so refresh works
+            window.history.replaceState(null, "", `/race/${ack.data.id}`);
+          } else {
+            const msg = ack?.error ?? "Failed to join room";
+            useRaceStore.getState().setError(msg);
+            sileo.error({ title: "Join failed", description: msg });
           }
+          resolve();
         });
-      };
-
-      if (!socketService.isConnected()) {
-        connect();
-        socketService.once("CONNECTED", doJoin);
-        return;
-      }
-
-      doJoin();
+      });
     },
-    [connect],
+    [ensureConnected],
   );
 
   /** Reconnect to an active room (after socket drop or page refresh). */
   const rejoinRoom = useCallback(
-    (roomId?: string) => {
-      const doRejoin = () => {
+    async (roomId?: string): Promise<void> => {
+      try {
+        await ensureConnected();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Connection failed";
+        useRaceStore.getState().setConnectionStatus("error");
+        useRaceStore.getState().setError(msg);
+        return;
+      }
+
+      // Try the provided roomId, then sessionStorage, then let the backend
+      // look up the user's active room (no roomId arg).
+      const targetRoomId = roomId || getPersistedRoomId() || undefined;
+
+      return new Promise<void>((resolve) => {
         socketService.emit(
           "rejoinRoom",
-          roomId ? { roomId } : undefined,
+          targetRoomId ? { roomId: targetRoomId } : undefined,
           (response: unknown) => {
             const ack = response as WsAckResponse<RoomState>;
             if (ack?.data) {
               useRaceStore.getState().setRoom(ack.data);
+              persistRoomId(ack.data.id);
+              // Update URL so subsequent refreshes work
+              window.history.replaceState(null, "", `/race/${ack.data.id}`);
+            } else if (ack?.error) {
+              // No active room found — clear persisted ID
+              persistRoomId(null);
+              useRaceStore.getState().setError(ack.error);
             }
+            resolve();
           },
         );
-      };
-
-      if (!socketService.isConnected()) {
-        connect();
-        socketService.once("CONNECTED", doRejoin);
-        return;
-      }
-
-      doRejoin();
+      });
     },
-    [connect],
+    [ensureConnected],
   );
 
   const submitGuess = useCallback(() => {
-    const { currentGuess, room } = useRaceStore.getState();
+    const { currentGuess, guesses, room } = useRaceStore.getState();
     const currentUser = useAuthStore.getState().user;
 
     if (!room || room.status !== "IN_PROGRESS") return;
@@ -314,6 +522,19 @@ export function useRace() {
       sileo.error({
         title: "Not enough letters",
         description: `Word must be ${WORD_LENGTH} letters`,
+      });
+      return;
+    }
+
+    // Reject duplicate guesses on the client side
+    const alreadyGuessed = guesses.some(
+      (g) => g.word.toLowerCase() === currentGuess.toLowerCase(),
+    );
+    if (alreadyGuessed) {
+      useRaceStore.getState().setError("Already guessed this word");
+      sileo.error({
+        title: "Duplicate guess",
+        description: "You already tried this word",
       });
       return;
     }
@@ -390,6 +611,10 @@ export function useRace() {
       if (ack?.data) {
         useRaceStore.getState().reset();
         useRaceStore.getState().setRoom(ack.data);
+        persistRoomId(ack.data.id);
+        window.history.replaceState(null, "", `/race/${ack.data.id}`);
+      } else if (ack?.error) {
+        sileo.error({ title: "Rematch failed", description: ack.error });
       }
     });
   }, []);
@@ -407,6 +632,10 @@ export function useRace() {
         if (ack?.data) {
           useRaceStore.getState().reset();
           useRaceStore.getState().setRoom(ack.data);
+          persistRoomId(ack.data.id);
+          window.history.replaceState(null, "", `/race/${ack.data.id}`);
+        } else if (ack?.error) {
+          sileo.error({ title: "Rematch failed", description: ack.error });
         }
       },
     );

@@ -37,6 +37,11 @@ export class WordService implements OnModuleInit {
     return this.validWords.has(word.toLowerCase());
   }
 
+  getRandomWord(): string {
+    const index = Math.floor(Math.random() * this.answerWords.length);
+    return this.answerWords[index];
+  }
+
   getAnswerWords(): string[] {
     return this.answerWords;
   }

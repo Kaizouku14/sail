@@ -13,7 +13,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Server } from 'socket.io';
+import { type Namespace, Server } from 'socket.io';
 import { JoinRoomDto } from './dto/join-room.dto';
 import { RoomService } from '@/room/room.service';
 import { GameService } from './game.service';
@@ -27,7 +27,8 @@ import { LETTER_RESULT } from '@/common/constants/word.constants';
 import { ROOM_STATUS } from '@/common/constants/room-status.constants';
 import { SubmitGuessDto } from './dto/submit-guess.dto';
 import { getErrorMessage } from '@/common/utils/error.utils';
-import { GameEvent } from '@/common/types/game-event.type';
+// GameEvent type is used when multi-server Redis re-broadcast is enabled
+// import type { GameEvent } from '@/common/types/game-event.type';
 
 @WebSocketGateway({
   cors: {
@@ -38,6 +39,15 @@ import { GameEvent } from '@/common/types/game-event.type';
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  private get ns(): Namespace {
+    // If `this.server` is already the namespace (has a `name` property
+    // equal to '/game'), return it directly.  Otherwise resolve it from
+    // the root server.
+    const s = this.server as unknown as Namespace;
+    if (s.name === '/game') return s;
+    return this.server.of('/game');
+  }
 
   private readonly logger = new Logger(GameGateway.name);
 
@@ -53,9 +63,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    const injectedName = (this.server as unknown as Namespace)?.name;
+    this.logger.log(
+      `[onModuleInit] this.server.name = "${injectedName}" | this.ns.name = "${this.ns.name}"`,
+    );
+
     await this.redis.subscribe('game-events', (message: string) => {
-      const event = JSON.parse(message) as GameEvent;
-      this.server.to(event.roomId).emit(event.type, event.payload);
+      // Multi-server: uncomment the lines below to re-broadcast.
+      // const event = JSON.parse(message) as GameEvent;
+      // this.ns.to(event.roomId).emit(event.type, event.payload);
+      void message; // suppress unused-variable lint
     });
   }
 
@@ -68,10 +85,22 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     type: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    await this.redis.publish(
-      'game-events',
-      JSON.stringify({ roomId, type, payload }),
+    // Log how many sockets are currently in this room
+    const socketsInRoom = await this.ns.in(roomId).fetchSockets();
+    this.logger.log(
+      `[emit] ${type} -> ns=${this.ns.name} room=${roomId} | sockets in room: ${socketsInRoom.length} [${socketsInRoom.map((s) => s.id).join(', ')}]`,
     );
+
+    this.ns.to(roomId).emit(type, payload);
+
+    try {
+      await this.redis.publish(
+        'game-events',
+        JSON.stringify({ roomId, type, payload }),
+      );
+    } catch (err) {
+      this.logger.warn(`[redis-pub] failed for ${type}: ${err}`);
+    }
   }
 
   private startRoomTimer(roomId: string, durationSeconds: number): void {
@@ -189,10 +218,22 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await client.join(room.id);
       data.roomId = room.id;
 
+      // Verify the host socket actually joined the Socket.IO room
+      const socketsInRoom = await this.ns.in(room.id).fetchSockets();
+      this.logger.log(
+        `[createRoom] user=${user.id} (socket=${client.id}) created room ${room.id} | ns=${this.ns.name} sockets in room after join: ${socketsInRoom.length} [${socketsInRoom.map((s) => s.id).join(', ')}]`,
+      );
+      const clientRooms = Array.from(client.rooms ?? []);
+      this.logger.log(
+        `[createRoom] client.rooms = [${clientRooms.join(', ')}]`,
+      );
+
       const publicState = this.room.getPublicRoomState(room);
-      return { event: 'ROOM_CREATED', data: publicState };
+      return { data: publicState };
     } catch (error: unknown) {
-      client.emit('ERROR', { message: getErrorMessage(error) });
+      const message = getErrorMessage(error);
+      client.emit('ERROR', { message });
+      return { data: null, error: message };
     }
   }
 
@@ -201,6 +242,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const data = this.getSocketData(client);
       const user: JwtPayload = data.user;
+
+      this.logger.log(
+        `[joinRoom] user=${user.id} (socket=${client.id}) joining room ${payload.roomId}`,
+      );
 
       const room = await this.room.joinRoom(
         payload.roomId,
@@ -211,9 +256,24 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await client.join(payload.roomId);
       data.roomId = payload.roomId;
 
+      // Verify room membership before emitting events
+      const socketsInRoom = await this.ns.in(payload.roomId).fetchSockets();
+      this.logger.log(
+        `[joinRoom] ns=${this.ns.name} sockets in room ${payload.roomId} after join: ${socketsInRoom.length} [${socketsInRoom.map((s) => s.id).join(', ')}]`,
+      );
+
       await this.publishEvent(payload.roomId, 'PLAYER_JOINED', {
         playerId: user.id,
         username: user.username,
+        roomStatus: room.status,
+        startedAt: room.startedAt
+          ? new Date(room.startedAt).toISOString()
+          : null,
+        remainingSeconds:
+          room.status === ROOM_STATUS.IN_PROGRESS
+            ? this.room.getRemainingSeconds(room)
+            : null,
+        timeLimit: room.timeLimit,
       });
 
       // If the room just became IN_PROGRESS (2 players), start the timer
@@ -235,9 +295,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       const publicState = this.room.getPublicRoomState(room);
-      return { event: 'ROOM_STATE', data: publicState };
+      return { data: publicState };
     } catch (error: unknown) {
-      client.emit('ERROR', { message: getErrorMessage(error) });
+      const message = getErrorMessage(error);
+      client.emit('ERROR', { message });
+      return { data: null, error: message };
     }
   }
 
@@ -257,14 +319,14 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!room) {
         client.emit('ERROR', { message: 'No active room found' });
-        return;
+        return { data: null, error: 'No active room found' };
       }
 
       // Verify user is actually in this room
       const isInRoom = room.players.some((p) => p.id === user.id);
       if (!isInRoom) {
         client.emit('ERROR', { message: 'You are not in this room' });
-        return;
+        return { data: null, error: 'You are not in this room' };
       }
 
       await client.join(room.id);
@@ -276,10 +338,33 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         username: user.username,
       });
 
+      // If the room is IN_PROGRESS but the server-side timer was lost
+      // (e.g. server restart), restart it so the game doesn't hang.
+      if (
+        room.status === ROOM_STATUS.IN_PROGRESS &&
+        room.startedAt &&
+        !this.roomTimers.has(room.id)
+      ) {
+        const remaining = this.room.getRemainingSeconds(room);
+        if (remaining !== null && remaining > 0) {
+          this.startRoomTimer(room.id, remaining);
+
+          await this.publishEvent(room.id, 'TIMER_START', {
+            remainingSeconds: remaining,
+            timeLimit: room.timeLimit,
+          });
+        } else if (remaining !== null && remaining <= 0) {
+          // Time already expired while no timer was running — finalize now
+          await this.handleTimeUp(room.id);
+        }
+      }
+
       const publicState = this.room.getPublicRoomState(room);
-      return { event: 'ROOM_STATE', data: publicState };
+      return { data: publicState };
     } catch (error: unknown) {
-      client.emit('ERROR', { message: getErrorMessage(error) });
+      const message = getErrorMessage(error);
+      client.emit('ERROR', { message });
+      return { data: null, error: message };
     }
   }
 
@@ -329,14 +414,20 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const results = this.game.evaluateWord(
-        payload.word.toLowerCase(),
-        room.word,
-      );
+      // Reject duplicate guesses
+      const normalizedWord = payload.word.toLowerCase();
+      if (player.guessWords && player.guessWords.includes(normalizedWord)) {
+        client.emit('ERROR', { message: 'Already guessed this word' });
+        return;
+      }
+
+      const results = this.game.evaluateWord(normalizedWord, room.word);
 
       player.guesses += 1;
       player.guessColors = player.guessColors ?? [];
       player.guessColors.push(results.map((r) => r));
+      player.guessWords = player.guessWords ?? [];
+      player.guessWords.push(normalizedWord);
 
       const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
       if (isWon) {
@@ -366,19 +457,28 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await this.publishEvent(roomId, 'GUESS_RESULT', {
         playerId: user.id,
         guessNumber: player.guesses,
+        word: normalizedWord,
         results,
+        status: player.status,
+        answer: player.status !== PLAYER_STATUS.PLAYING ? room.word : undefined,
       });
 
       await this.publishEvent(roomId, 'OPPONENT_GUESS', {
         playerId: user.id,
         guessNumber: player.guesses,
         colors: results.map((r) => r),
+        status: player.status,
       });
 
       if (isWon) {
         await this.publishEvent(roomId, 'PLAYER_WON', {
           playerId: user.id,
           guessCount: player.guesses,
+        });
+      } else if (player.status === PLAYER_STATUS.LOST) {
+        await this.publishEvent(roomId, 'PLAYER_LOST', {
+          playerId: user.id,
+          answer: room.word,
         });
       }
 
@@ -420,9 +520,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       const publicState = this.room.getPublicRoomState(newRoom);
-      return { event: 'ROOM_CREATED', data: publicState };
+      return { data: publicState };
     } catch (error: unknown) {
-      client.emit('ERROR', { message: getErrorMessage(error) });
+      const message = getErrorMessage(error);
+      client.emit('ERROR', { message });
+      return { data: null, error: message };
     }
   }
 
@@ -438,7 +540,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const newRoomId = await this.room.getRematchRoom(payload.previousRoomId);
       if (!newRoomId) {
         client.emit('ERROR', { message: 'Rematch room not found or expired' });
-        return;
+        return { data: null, error: 'Rematch room not found or expired' };
       }
 
       const room = await this.room.joinRoom(newRoomId, user.id, user.username);
@@ -449,6 +551,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await this.publishEvent(newRoomId, 'PLAYER_JOINED', {
         playerId: user.id,
         username: user.username,
+        roomStatus: room.status,
+        startedAt: room.startedAt
+          ? new Date(room.startedAt).toISOString()
+          : null,
+        remainingSeconds:
+          room.status === ROOM_STATUS.IN_PROGRESS
+            ? this.room.getRemainingSeconds(room)
+            : null,
+        timeLimit: room.timeLimit,
       });
 
       await this.publishEvent(payload.previousRoomId, 'REMATCH_ACCEPTED', {
@@ -473,9 +584,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       const publicState = this.room.getPublicRoomState(room);
-      return { event: 'ROOM_STATE', data: publicState };
+      return { data: publicState };
     } catch (error: unknown) {
-      client.emit('ERROR', { message: getErrorMessage(error) });
+      const message = getErrorMessage(error);
+      client.emit('ERROR', { message });
+      return { data: null, error: message };
     }
   }
 }

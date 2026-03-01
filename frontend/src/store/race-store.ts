@@ -31,7 +31,20 @@ interface RaceState {
   rematchFrom: string | null;
 
   setConnectionStatus: (status: ConnectionStatus) => void;
+
+  /**
+   * Full room hydration — used when first entering a room (create, join,
+   * rejoin).  Always overwrites everything including the timer.
+   */
   setRoom: (room: RoomState) => void;
+
+  /**
+   * Lightweight room metadata update — used for in-game events like
+   * PLAYER_JOINED that change status / players but must NOT reset the
+   * timer if it is already running.
+   */
+  updateRoomMeta: (patch: Partial<RoomState>) => void;
+
   setRoomStatus: (status: RoomStatus) => void;
   addPlayer: (player: RoomPlayer) => void;
   removePlayer: (playerId: string) => void;
@@ -73,29 +86,75 @@ const initialState = {
   rematchFrom: null as string | null,
 };
 
+function deriveTimerState(room: RoomState): {
+  remainingSeconds: number | null;
+  timeLimit: number;
+  timerStatus: TimerStatus;
+} {
+  const remainingSeconds = room.remainingSeconds ?? null;
+  const timeLimit = room.timeLimit ?? 360;
+  let timerStatus: TimerStatus;
+
+  if (remainingSeconds !== null && remainingSeconds > 0) {
+    timerStatus = "running";
+  } else if (room.status === "FINISHED") {
+    timerStatus = "expired";
+  } else {
+    timerStatus = "idle";
+  }
+
+  return { remainingSeconds, timeLimit, timerStatus };
+}
+
 export const useRaceStore = create<RaceState>()((set, get) => ({
   ...initialState,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
 
-  setRoom: (room) =>
+  setRoom: (room) => {
+    const timer = deriveTimerState(room);
     set({
       room,
       roomId: room.id,
       error: null,
-      // Hydrate timer from room state when joining/reconnecting
-      remainingSeconds: room.remainingSeconds ?? null,
-      timeLimit: room.timeLimit ?? 360,
-      timerStatus:
-        room.remainingSeconds !== null && room.remainingSeconds > 0
-          ? "running"
-          : room.status === "FINISHED"
-            ? "expired"
-            : "idle",
+      remainingSeconds: timer.remainingSeconds,
+      timeLimit: timer.timeLimit,
+      timerStatus: timer.timerStatus,
       // Clear rematch state when entering a new room
       rematchRoomId: null,
       rematchFrom: null,
-    }),
+    });
+  },
+
+  updateRoomMeta: (patch) => {
+    const { room, timerStatus } = get();
+    if (!room) return;
+
+    const updatedRoom = { ...room, ...patch };
+
+    // If the timer is already running or expired, do NOT touch the timer
+    // state — the server TIMER_START / TIMER_TICK events are authoritative.
+    // Only hydrate the timer if it was idle (i.e. the game just started and
+    // we haven't received TIMER_START yet).
+    if (timerStatus === "idle") {
+      const timer = deriveTimerState(updatedRoom);
+      set({
+        room: updatedRoom,
+        roomId: updatedRoom.id,
+        error: null,
+        remainingSeconds: timer.remainingSeconds,
+        timeLimit: timer.timeLimit,
+        timerStatus: timer.timerStatus,
+      });
+    } else {
+      // Keep existing timer state untouched
+      set({
+        room: updatedRoom,
+        roomId: updatedRoom.id,
+        error: null,
+      });
+    }
+  },
 
   setRoomStatus: (status) => {
     const { room } = get();

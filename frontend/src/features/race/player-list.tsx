@@ -55,9 +55,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
               )}
             >
               <div className="flex items-center gap-2 min-w-0">
-                {isHost && (
-                  <Crown className="size-3.5 text-chart-2 shrink-0" />
-                )}
+                {isHost && <Crown className="size-3.5 text-chart-2 shrink-0" />}
                 <span
                   className={cn(
                     "text-sm font-heading truncate",
@@ -75,9 +73,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
 
               <div className="flex items-center gap-2 shrink-0">
                 {player.guesses > 0 && (
-                  <span className="text-xs opacity-50">
-                    {player.guesses}/6
-                  </span>
+                  <span className="text-xs opacity-50">{player.guesses}/6</span>
                 )}
                 <span
                   className={cn(
@@ -95,9 +91,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
 
         {players.length < 2 && (
           <div className="flex items-center justify-center rounded-base border-2 border-dashed border-border/40 px-3 py-3">
-            <span className="text-xs opacity-40">
-              Waiting for opponent...
-            </span>
+            <span className="text-xs opacity-40">Waiting for opponent...</span>
           </div>
         )}
       </div>

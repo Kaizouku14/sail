@@ -3,6 +3,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { SocketIoAdapter } from './common/adapters/socket-io.adapter';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common/pipes';
 import fastifyCookie from '@fastify/cookie';
@@ -30,7 +31,11 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 3000);
+  app.useWebSocketAdapter(
+    new SocketIoAdapter(app, process.env.BASE_URL ?? 'http://localhost:5173'),
+  );
+
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 
 void bootstrap();

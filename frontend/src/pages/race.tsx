@@ -1,9 +1,12 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useRace, RaceLobby, RaceRoom } from "@/features/race";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
+
+const ROOM_ID_STORAGE_KEY = "race_active_room_id";
 
 const Race = () => {
   const { roomId: roomIdFromUrl } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
   const {
     room,
     disconnect,
@@ -16,18 +19,29 @@ const Race = () => {
   } = useRace();
   const autoJoinAttempted = useRef(false);
 
-  // Auto-join if navigated via invite link, or attempt rejoin for reconnection
   useEffect(() => {
     if (autoJoinAttempted.current) return;
     if (room) return;
 
     autoJoinAttempted.current = true;
 
-    if (roomIdFromUrl) {
-      // Try rejoin first (handles reconnection), fall back to join (handles fresh invite)
-      rejoinRoom(roomIdFromUrl);
+    const persistedRoomId = sessionStorage.getItem(ROOM_ID_STORAGE_KEY);
+    const targetRoomId = roomIdFromUrl || persistedRoomId;
+
+    if (targetRoomId) {
+      rejoinRoom(targetRoomId);
     }
+
+    return () => {
+      // Reset so the StrictMode re-mount can retry
+      autoJoinAttempted.current = false;
+    };
   }, [roomIdFromUrl, room, rejoinRoom, joinRoom]);
+
+  const handleLeave = useCallback(() => {
+    disconnect();
+    navigate("/race", { replace: true });
+  }, [disconnect, navigate]);
 
   if (!room) {
     return <RaceLobby roomIdFromUrl={roomIdFromUrl} />;
@@ -35,7 +49,7 @@ const Race = () => {
 
   return (
     <RaceRoom
-      onLeave={disconnect}
+      onLeave={handleLeave}
       onKeyPress={handleKeyPress}
       keyboardColors={keyboardColors}
       onRequestRematch={requestRematch}

@@ -1,4 +1,4 @@
-import { cn, colorMap } from "@/lib/utils";
+import { cn, statusStyles } from "@/lib/utils";
 import { MAX_GUESSES, WORD_LENGTH } from "@/utils/constants";
 import type { PlayerStatus } from "@/types/socket.types";
 import { Trophy, XCircle, Loader2 } from "lucide-react";
@@ -75,9 +75,12 @@ const OpponentBoard: React.FC<OpponentBoardProps> = ({
                   <div
                     key={colIndex}
                     className={cn(
-                      "h-7 w-9 rounded-sm border-2 transition-colors duration-300",
+                      "h-7 w-7 rounded-sm border-2 transition-colors duration-300",
                       hasRow && color
-                        ? cn(colorMap[color], "border-transparent")
+                        ? cn(
+                            statusStyles[color as keyof typeof statusStyles],
+                            "border-transparent",
+                          )
                         : "border-border/30 bg-transparent",
                       hasRow && "animate-flip",
                     )}

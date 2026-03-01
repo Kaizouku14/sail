@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,31 @@ import {
 } from "@/components/ui/card";
 import { useRace } from "../../hooks/use-race";
 import { useAuthStore } from "@/store";
+import { useRaceStore } from "@/store";
 import { PageRoutes } from "@/utils/constants";
 import { Loader2, Plus, LogIn, Swords } from "lucide-react";
 import { sileo } from "sileo";
 
 interface RaceLobbyProps {
   roomIdFromUrl?: string;
+}
+
+/**
+ * Extracts a room ID from user input. Handles:
+ * - Full invite URL: http://localhost:5173/race/some-uuid → some-uuid
+ * - Full invite URL: https://example.com/race/some-uuid → some-uuid
+ * - Raw room ID: some-uuid → some-uuid
+ */
+function parseRoomId(input: string): string {
+  const trimmed = input.trim();
+
+  // Check if the input looks like a URL containing /race/
+  const racePathMatch = trimmed.match(/\/race\/([^/?#]+)/);
+  if (racePathMatch?.[1]) {
+    return racePathMatch[1];
+  }
+
+  return trimmed;
 }
 
 const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
@@ -30,7 +49,17 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
 
   const isConnecting = connectionStatus === "connecting";
 
-  const handleCreate = () => {
+  // Listen for socket errors to reset loading states
+  const error = useRaceStore((s) => s.error);
+
+  useEffect(() => {
+    if (error) {
+      setIsCreating(false);
+      setIsJoining(false);
+    }
+  }, [error]);
+
+  const handleCreate = useCallback(async () => {
     if (!isAuthenticated) {
       sileo.error({
         title: "Sign in required",
@@ -41,15 +70,19 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
     }
 
     setIsCreating(true);
-    createRoom();
-  };
+    try {
+      await createRoom();
+    } finally {
+      setIsCreating(false);
+    }
+  }, [isAuthenticated, createRoom, navigate]);
 
-  const handleJoin = () => {
-    const code = joinCode.trim();
-    if (!code) {
+  const handleJoin = useCallback(async () => {
+    const roomId = parseRoomId(joinCode);
+    if (!roomId) {
       sileo.error({
         title: "Missing room code",
-        description: "Please enter a room code to join",
+        description: "Please enter a room code or paste an invite link",
       });
       return;
     }
@@ -64,13 +97,17 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
     }
 
     setIsJoining(true);
-    joinRoom(code);
-  };
+    try {
+      await joinRoom(roomId);
+    } finally {
+      setIsJoining(false);
+    }
+  }, [joinCode, isAuthenticated, joinRoom, navigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleJoin();
+      void handleJoin();
     }
   };
 
@@ -125,13 +162,13 @@ const RaceLobby: React.FC<RaceLobbyProps> = ({ roomIdFromUrl }) => {
           <CardHeader>
             <CardTitle className="text-base">Join a room</CardTitle>
             <CardDescription>
-              Enter a room code from a friend to join their game
+              Enter a room code or paste an invite link to join
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
               <Input
-                placeholder="Paste room code..."
+                placeholder="Paste room code or invite link..."
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
                 onKeyDown={handleKeyDown}

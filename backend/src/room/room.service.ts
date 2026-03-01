@@ -46,7 +46,7 @@ export class RoomService {
   ) {}
 
   async createRoom(userId: string, username: string): Promise<RoomState> {
-    const word = this.game.getDailyWord();
+    const word = this.game.getRandomWord();
     const roomId = uuidv4();
 
     const room: RoomState = {
@@ -66,6 +66,7 @@ export class RoomService {
           status: PLAYER_STATUS.PLAYING as PlayerStatusType,
           socketId: '',
           guessColors: [],
+          guessWords: [],
         },
       ],
     };
@@ -132,6 +133,7 @@ export class RoomService {
       status: PLAYER_STATUS.PLAYING as PlayerStatusType,
       socketId: '',
       guessColors: [],
+      guessWords: [],
     });
 
     if (parsedRoom.players.length === 2) {

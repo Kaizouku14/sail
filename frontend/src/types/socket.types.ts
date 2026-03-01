@@ -12,6 +12,7 @@ export const WS_EVENT = {
   GUESS_RESULT: "GUESS_RESULT",
   OPPONENT_GUESS: "OPPONENT_GUESS",
   PLAYER_WON: "PLAYER_WON",
+  PLAYER_LOST: "PLAYER_LOST",
   GAME_OVER: "GAME_OVER",
   TIMER_START: "TIMER_START",
   TIMER_TICK: "TIMER_TICK",
@@ -60,6 +61,10 @@ export interface WsErrorPayload {
 export interface PlayerJoinedPayload {
   playerId: string;
   username: string;
+  roomStatus: RoomStatus;
+  startedAt: string | null;
+  remainingSeconds: number | null;
+  timeLimit: number;
 }
 
 export interface PlayerLeftPayload {
@@ -74,18 +79,27 @@ export interface PlayerRejoinedPayload {
 export interface GuessResultPayload {
   playerId: string;
   guessNumber: number;
+  word: string;
   results: string[];
+  status: PlayerStatus;
+  answer?: string;
 }
 
 export interface OpponentGuessPayload {
   playerId: string;
   guessNumber: number;
   colors: string[];
+  status: PlayerStatus;
 }
 
 export interface PlayerWonPayload {
   playerId: string;
   guessCount: number;
+}
+
+export interface PlayerLostPayload {
+  playerId: string;
+  answer: string;
 }
 
 export interface GameOverPayload {
@@ -137,6 +151,6 @@ export interface AcceptRematchPayload {
 }
 
 export interface WsAckResponse<T = unknown> {
-  event: string;
-  data: T;
+  data: T | null;
+  error?: string;
 }
