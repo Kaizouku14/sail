@@ -79,15 +79,17 @@ const Header = () => {
       <div className="flex items-center gap-3">
         {isAuthenticated && user && (
           <>
-            <div className="flex items-center gap-2 text-sm">
-              <User className="size-4" />
+            <div className="flex items-center gap-2 text-sm bg-secondary-background  border-2 border-border py-1.5 px-4  rounded">
+              <div className="size-6 rounded-full bg-main flex items-center justify-center">
+                <User className="size-4 text-secondary-background" />
+              </div>
               <span className="font-medium">{user.username}</span>
             </div>
             <Button
               variant="neutral"
               size="sm"
               onClick={handleLogout}
-              className="flex items-center gap-2"
+              className="flex items-center h-10 gap-2"
             >
               <LogOut className="size-4" />
               Logout
@@ -100,7 +102,7 @@ const Header = () => {
             variant="neutral"
             size="sm"
             onClick={handleLogin}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 "
           >
             <LogIn className="size-4" />
             Sign in
