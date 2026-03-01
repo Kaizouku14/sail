@@ -20,8 +20,12 @@ import * as Joi from 'joi';
           .valid('development', 'production', 'test')
           .required(),
         BASE_URL: Joi.string().uri().required(),
-        DATABASE_URL: Joi.string().uri().required(),
-        REDIS_URL: Joi.string().uri().required(),
+        DATABASE_URL: Joi.string()
+          .uri({ scheme: ['postgresql', 'postgres'] })
+          .required(),
+        REDIS_URL: Joi.string()
+          .uri({ scheme: ['redis', 'rediss'] })
+          .required(),
         JWT_SECRET: Joi.string().min(32).required(),
         JWT_EXPIRES_IN: Joi.string().required(),
         COOKIE_SECRET: Joi.string().min(32).required(),
