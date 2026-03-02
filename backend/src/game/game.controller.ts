@@ -22,6 +22,8 @@ import {
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { JwtPayload } from '@/common/types/jwt-payload.type';
 import { RedisService } from '@/redis/redis.service';
+import type { CookieSerializeOptions } from '@fastify/cookie';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('game')
 export class GameController {
@@ -30,7 +32,20 @@ export class GameController {
     private readonly gameService: GameService,
     private readonly ai: AIService,
     private readonly redis: RedisService,
+    private readonly config: ConfigService,
   ) {}
+
+  private sessionCookieOptions(): CookieSerializeOptions {
+    const isProduction = this.config.get('NODE_ENV') === 'production';
+
+    return {
+      httpOnly: true,
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/',
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
+    };
+  }
 
   @Post('validate')
   validate(@Body() body: SubmitGuessDto) {
@@ -57,11 +72,7 @@ export class GameController {
 
     if (!sessionId) {
       sessionId = uuidv4();
-      res.setCookie('sessionId', sessionId, {
-        httpOnly: true,
-        maxAge: 60 * 60 * 24, // 24 hours
-        path: '/',
-      });
+      res.setCookie('sessionId', sessionId, this.sessionCookieOptions());
     }
 
     const result = await this.gameService.submitGuess(
