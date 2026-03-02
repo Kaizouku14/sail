@@ -17,15 +17,18 @@ export function useGame() {
     hint,
     hintsRemaining,
     isLoading,
+    isSubmitting,
     error,
     addLetter,
     removeLetter,
-    setGuessResult,
     setGameStatus,
     setHint,
     setLoading,
     setError,
     resetGame,
+    addOptimisticGuess,
+    replaceOptimisticGuess,
+    removeOptimisticGuess,
   } = useGameStore();
 
   const { isAuthenticated } = useAuthStore();
@@ -82,7 +85,10 @@ export function useGame() {
     const current = useGameStore.getState().currentGuess;
     const gameStatus = useGameStore.getState().status;
     const existingGuesses = useGameStore.getState().guesses;
+    const submitting = useGameStore.getState().isSubmitting;
 
+    // Block if already submitting, game over, or not enough letters
+    if (submitting) return;
     if (gameStatus !== GAME_STATUS.IN_PROGRESS) return;
 
     if (current.length !== WORD_LENGTH) {
@@ -107,17 +113,18 @@ export function useGame() {
       return;
     }
 
+    // Optimistically add the guess to the board immediately
+    // This clears currentGuess, sets isSubmitting = true, and shows the word on the board
+    addOptimisticGuess(current);
+
     try {
-      setLoading(true);
       setError(null);
 
       const result = await gameService.submitGuess(current);
 
-      // Convert the backend response (plain string[] of statuses) into our frontend Guess shape
+      // Replace the optimistic guess with the real result (colors, keyboard updates)
       const guess = guessResponseToGuess(current, result.results);
-
-      setGuessResult(guess);
-      setLoading(false);
+      replaceOptimisticGuess(guess);
 
       if (result.status === GAME_STATUS.WON) {
         setGameStatus("WON");
@@ -133,6 +140,9 @@ export function useGame() {
         });
       }
     } catch (err: unknown) {
+      // Roll back the optimistic guess on failure
+      removeOptimisticGuess();
+
       const axiosError = err as {
         response?: { data?: { message?: string }; status?: number };
       };
@@ -152,9 +162,14 @@ export function useGame() {
           description: message,
         });
       }
-      setLoading(false);
     }
-  }, [setGuessResult, setGameStatus, setLoading, setError]);
+  }, [
+    setGameStatus,
+    setError,
+    addOptimisticGuess,
+    replaceOptimisticGuess,
+    removeOptimisticGuess,
+  ]);
 
   const requestHint = useCallback(async () => {
     if (!isAuthenticated) {
@@ -194,8 +209,10 @@ export function useGame() {
     (e: KeyboardEvent) => {
       const gameStatus = useGameStore.getState().status;
       const loading = useGameStore.getState().isLoading;
+      const submitting = useGameStore.getState().isSubmitting;
 
-      if (gameStatus !== GAME_STATUS.IN_PROGRESS || loading) return;
+      if (gameStatus !== GAME_STATUS.IN_PROGRESS || loading || submitting)
+        return;
 
       // Ignore if user is typing in an input field
       const target = e.target as HTMLElement;
@@ -229,8 +246,10 @@ export function useGame() {
     (key: string) => {
       const gameStatus = useGameStore.getState().status;
       const loading = useGameStore.getState().isLoading;
+      const submitting = useGameStore.getState().isSubmitting;
 
-      if (gameStatus !== GAME_STATUS.IN_PROGRESS || loading) return;
+      if (gameStatus !== GAME_STATUS.IN_PROGRESS || loading || submitting)
+        return;
 
       if (key === "ENTER") {
         submitGuess();
@@ -267,6 +286,7 @@ export function useGame() {
     hint,
     hintsRemaining,
     isLoading,
+    isSubmitting,
     error,
 
     // Actions

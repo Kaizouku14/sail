@@ -1,4 +1,10 @@
-export type TileStatus = "CORRECT" | "PRESENT" | "ABSENT" | "EMPTY" | "ACTIVE";
+export type TileStatus =
+  | "CORRECT"
+  | "PRESENT"
+  | "ABSENT"
+  | "EMPTY"
+  | "ACTIVE"
+  | "PENDING";
 export type GameStatus = "IN_PROGRESS" | "WON" | "LOST";
 
 export interface LetterResult {

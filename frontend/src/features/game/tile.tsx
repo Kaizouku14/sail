@@ -9,6 +9,7 @@ interface TileProps {
 const Tile: React.FC<TileProps> = ({ letter, status }) => {
   const isRevealed =
     status === "CORRECT" || status === "PRESENT" || status === "ABSENT";
+  const isPending = status === "PENDING";
   const hasLetter = letter.length > 0;
 
   return (
@@ -19,6 +20,7 @@ const Tile: React.FC<TileProps> = ({ letter, status }) => {
         "transition-transform duration-100",
         statusStyles[status],
         isRevealed && "animate-flip",
+        isPending && "animate-pulse",
         hasLetter && status === "ACTIVE" && "animate-pop",
       )}
     >

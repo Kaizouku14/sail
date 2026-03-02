@@ -13,4 +13,6 @@ export const statusStyles: Record<TileStatus, string> = {
     "bg-secondary-background border-secondary-background text-neutral-100",
   ACTIVE: "bg-transparent border-foreground text-foreground",
   EMPTY: "bg-transparent border-border/40 text-transparent",
+  PENDING:
+    "bg-transparent border-foreground/50 text-foreground/70 animate-pulse",
 };

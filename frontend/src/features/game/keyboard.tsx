@@ -22,6 +22,7 @@ const keyStatusStyles: Record<TileStatus, string> = {
     "bg-secondary-background/60 border-secondary-background/60 text-foreground/50 hover:bg-secondary-background/50",
   ACTIVE: "",
   EMPTY: "",
+  PENDING: "",
 };
 
 const KeyBoard: React.FC<KeyBoardProps> = ({

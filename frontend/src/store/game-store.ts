@@ -17,6 +17,7 @@ interface GameStore {
   hint: string | null;
   hintsRemaining: number;
   isLoading: boolean;
+  isSubmitting: boolean;
   error: string | null;
 
   // actions
@@ -27,9 +28,15 @@ interface GameStore {
   setGameStatus: (status: GameStatus, answer?: string) => void;
   setHint: (hint: string, hintsRemaining: number) => void;
   setLoading: (loading: boolean) => void;
+  setSubmitting: (submitting: boolean) => void;
   setError: (error: string | null) => void;
   resetGame: () => void;
+  addOptimisticGuess: (word: string) => void;
+  replaceOptimisticGuess: (guess: Guess) => void;
+  removeOptimisticGuess: () => void;
 }
+
+const PENDING_STATUS = "PENDING" as TileStatus;
 
 const initialState = {
   guesses: [],
@@ -41,6 +48,7 @@ const initialState = {
   hint: null,
   hintsRemaining: 3,
   isLoading: false,
+  isSubmitting: false,
   error: null,
 };
 
@@ -64,6 +72,66 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     // triggers the actual API call in useGame hook
     // store just tracks loading state
     set({ isLoading: true, error: null });
+  },
+
+  addOptimisticGuess: (word: string) => {
+    const { guesses } = get();
+
+    // Create a pending guess with placeholder tile statuses
+    const optimisticGuess: Guess = {
+      word,
+      results: word.split("").map((letter) => ({
+        letter,
+        status: PENDING_STATUS,
+      })),
+    };
+
+    set({
+      guesses: [...guesses, optimisticGuess],
+      currentGuess: "",
+      isSubmitting: true,
+      guessesRemaining: MAX_GUESSES - guesses.length - 1,
+    });
+  },
+
+  replaceOptimisticGuess: (guess: Guess) => {
+    const { guesses, keyboardColors } = get();
+
+    // Replace the last guess (the optimistic one) with the real result
+    const updatedGuesses = [...guesses];
+    updatedGuesses[updatedGuesses.length - 1] = guess;
+
+    // Update keyboard colors with the real results
+    const newKeyboardColors = { ...keyboardColors };
+    guess.results.forEach(({ letter, status }) => {
+      const current = newKeyboardColors[letter];
+      // priority: CORRECT > PRESENT > ABSENT
+      if (current === TILE_STATUS.CORRECT) return;
+      if (current === TILE_STATUS.PRESENT && status !== TILE_STATUS.CORRECT)
+        return;
+      newKeyboardColors[letter] = status;
+    });
+
+    set({
+      guesses: updatedGuesses,
+      keyboardColors: newKeyboardColors,
+      isLoading: false,
+      isSubmitting: false,
+    });
+  },
+
+  removeOptimisticGuess: () => {
+    const { guesses } = get();
+
+    // Remove the last guess (the failed optimistic one)
+    const updatedGuesses = guesses.slice(0, -1);
+
+    set({
+      guesses: updatedGuesses,
+      isLoading: false,
+      isSubmitting: false,
+      guessesRemaining: MAX_GUESSES - updatedGuesses.length,
+    });
   },
 
   setGuessResult: (guess) => {
@@ -98,6 +166,10 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
   setLoading: (loading) => {
     set({ isLoading: loading });
+  },
+
+  setSubmitting: (submitting) => {
+    set({ isSubmitting: submitting });
   },
 
   setError: (error) => {
