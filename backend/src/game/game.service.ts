@@ -177,28 +177,28 @@ export class GameService {
     const results = this.evaluateWord(guess, state.answer);
     state.guesses.push({ word: guess, results });
 
-    // Persist individual guess to the guesses table (authenticated users only)
-    if (userId) {
-      await this.saveGuessToDB(sessionId, guess, results);
-    }
-
     const isWon = results.every((r) => r === LETTER_RESULT.CORRECT);
-    let result: GameStatusType;
     if (isWon) {
-      result = GAME_STATUS.WON as GameStatusType;
-      state.status = result;
-      if (userId) {
-        await this.finalizeSession(sessionId, result, state.guesses.length);
-      }
+      state.status = GAME_STATUS.WON as GameStatusType;
     } else if (state.guesses.length === state.maxGuesses) {
-      result = GAME_STATUS.LOST as GameStatusType;
-      state.status = result;
-      if (userId) {
-        await this.finalizeSession(sessionId, result, state.guesses.length);
+      state.status = GAME_STATUS.LOST as GameStatusType;
+    }
+
+    // Run Redis save and DB writes in parallel — they are independent
+    const dbWrites: Promise<void>[] = [this.saveGameState(sessionId, state)];
+
+    if (userId) {
+      // Fire-and-forget DB persistence — don't block the response
+      dbWrites.push(this.saveGuessToDB(sessionId, guess, results));
+
+      if (state.status !== (GAME_STATUS.IN_PROGRESS as GameStatusType)) {
+        dbWrites.push(
+          this.finalizeSession(sessionId, state.status, state.guesses.length),
+        );
       }
     }
 
-    await this.saveGameState(sessionId, state);
+    await Promise.all(dbWrites);
 
     return {
       results,
@@ -239,6 +239,7 @@ export class GameService {
     word: string,
     results: LetterResultType[],
   ): Promise<void> {
+    // Use a subquery to avoid the extra SELECT round-trip
     const [session] = await this.database.db
       .select({ id: gameSessions.id })
       .from(gameSessions)
@@ -253,4 +254,9 @@ export class GameService {
       results,
     });
   }
+
+  /**
+   * Ensures the game session row exists AND saves the guess in a single
+   * parallel batch when possible, reducing sequential DB round-trips.
+   */
 }

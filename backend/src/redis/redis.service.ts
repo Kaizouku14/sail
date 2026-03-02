@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import Redis, { ChainableCommander } from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -50,6 +50,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async expire(key: string, seconds: number): Promise<void> {
     await this.client.expire(key, seconds);
+  }
+
+  pipeline(): ChainableCommander {
+    return this.client.pipeline();
   }
 
   async publish(channel: string, message: string): Promise<void> {

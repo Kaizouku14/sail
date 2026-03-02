@@ -44,11 +44,16 @@ export class RateLimitGuard implements CanActivate {
     const now = Date.now();
     const windowStart = now - windowSeconds * 1000;
 
-    // sliding window in Redis
-    await this.redis.zremrangebyscore(key, 0, windowStart);
-    await this.redis.zadd(key, now, `${now}`);
-    await this.redis.expire(key, windowSeconds);
-    const count: number = await this.redis.zcard(key);
+    // sliding window in Redis — batch all 4 ops in a single round-trip
+    const pipeline = this.redis.pipeline();
+    pipeline.zremrangebyscore(key, 0, windowStart);
+    pipeline.zadd(key, now, `${now}`);
+    pipeline.expire(key, windowSeconds);
+    pipeline.zcard(key);
+    const results = await pipeline.exec();
+
+    // zcard is the 4th command (index 3), result is [error, value]
+    const count: number = (results?.[3]?.[1] as number) ?? 0;
 
     if (count > limit) {
       throw new HttpException(

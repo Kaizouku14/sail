@@ -14,6 +14,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     this.pool = new Pool({
       connectionString: this.config.get<string>('DATABASE_URL'),
+      max: 5, // free-tier DBs have limited connections
+      idleTimeoutMillis: 30_000, // close idle connections after 30s
+      connectionTimeoutMillis: 10_000, // fail fast if DB is unreachable
+      ssl: { rejectUnauthorized: false }, // required for Neon
     });
     this.db = drizzle(this.pool, { schema });
   }

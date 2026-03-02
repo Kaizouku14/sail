@@ -11,7 +11,7 @@ import { DatabaseService } from '@/database/database.service';
 import { rooms, roomPlayers } from '@/database/schema';
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { WsException } from '@nestjs/websockets';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 const DEFAULT_TIME_LIMIT = 360; // 6 minutes in seconds
@@ -315,38 +315,42 @@ export class RoomService {
       this.ROOM_TTL,
     );
 
-    // Clean up user-room mappings
-    for (const player of parsedRoom.players) {
-      await this.redis.del(`user-room:${player.id}`);
-    }
+    // Clean up user-room mappings in parallel
+    await Promise.all(
+      parsedRoom.players.map((player) =>
+        this.redis.del(`user-room:${player.id}`),
+      ),
+    );
 
     // Determine winner for DB persistence
     const winner = this.determineWinner(parsedRoom);
 
     try {
-      await this.database.db
-        .update(rooms)
-        .set({
-          status: parsedRoom.status,
-          finishedAt: parsedRoom.finishedAt,
-          winnerId: winner?.id ?? null,
-        })
-        .where(eq(rooms.id, roomId));
-
-      for (const player of parsedRoom.players) {
-        await this.database.db
-          .update(roomPlayers)
+      // Run room update and all player updates in parallel
+      await Promise.all([
+        this.database.db
+          .update(rooms)
           .set({
-            status: player.status,
-            guessCount: player.guesses,
+            status: parsedRoom.status,
+            finishedAt: parsedRoom.finishedAt,
+            winnerId: winner?.id ?? null,
           })
-          .where(
-            and(
-              eq(roomPlayers.roomId, roomId),
-              eq(roomPlayers.userId, player.id),
+          .where(eq(rooms.id, roomId)),
+        ...parsedRoom.players.map((player) =>
+          this.database.db
+            .update(roomPlayers)
+            .set({
+              status: player.status,
+              guessCount: player.guesses,
+            })
+            .where(
+              and(
+                eq(roomPlayers.roomId, roomId),
+                eq(roomPlayers.userId, player.id),
+              ),
             ),
-          );
-      }
+        ),
+      ]);
     } catch (error: unknown) {
       this.logger.error(
         `Failed to persist room finalization to DB: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -461,24 +465,43 @@ export class RoomService {
     losses: number;
     winRate: number;
   }> {
-    const history = await this.getRaceHistory(userId, 1000);
+    try {
+      const results = await this.database.db
+        .select({
+          status: roomPlayers.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(roomPlayers)
+        .innerJoin(rooms, eq(roomPlayers.roomId, rooms.id))
+        .where(
+          and(
+            eq(roomPlayers.userId, userId),
+            eq(rooms.status, ROOM_STATUS.FINISHED),
+          ),
+        )
+        .groupBy(roomPlayers.status);
 
-    // Only count finished rooms
-    const finished = history.filter(
-      (h) => h.roomStatus === ROOM_STATUS.FINISHED,
-    );
+      let wins = 0;
+      let losses = 0;
 
-    const wins = finished.filter((h) => h.status === PLAYER_STATUS.WON).length;
-    const losses = finished.filter(
-      (h) => h.status === PLAYER_STATUS.LOST,
-    ).length;
-    const totalRaces = finished.length;
+      for (const row of results) {
+        if (row.status === PLAYER_STATUS.WON) wins = row.count;
+        else if (row.status === PLAYER_STATUS.LOST) losses = row.count;
+      }
 
-    return {
-      totalRaces,
-      wins,
-      losses,
-      winRate: totalRaces === 0 ? 0 : Math.round((wins / totalRaces) * 100),
-    };
+      const totalRaces = wins + losses;
+
+      return {
+        totalRaces,
+        wins,
+        losses,
+        winRate: totalRaces === 0 ? 0 : Math.round((wins / totalRaces) * 100),
+      };
+    } catch (error: unknown) {
+      this.logger.error(
+        `Failed to fetch race stats: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      return { totalRaces: 0, wins: 0, losses: 0, winRate: 0 };
+    }
   }
 }
